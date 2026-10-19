@@ -789,23 +789,60 @@ export type Database = {
         };
         Returns: boolean;
       };
+      attendance_inbox: {
+        Args: { p_clinic_id: string };
+        Returns: {
+          attendance_state: Database["public"]["Enums"]["attendance_state"];
+          contact_phone: string;
+          id: number;
+          last_message: string | null;
+          last_message_at: string;
+          last_patient_message_at: string | null;
+          last_role: Database["public"]["Enums"]["message_role"] | null;
+          message_count: number;
+          needs_human_at: string | null;
+          started_at: string;
+        }[];
+      };
+      conversation_stats: {
+        Args: { p_clinic_id: string; p_from: string; p_to: string };
+        Returns: Json;
+      };
       count_ai_message: {
         Args: { p_subscription_id: string };
         Returns: undefined;
       };
       dearmor: { Args: { "": string }; Returns: string };
+      due_reminders: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          clinic_id: string;
+          contact_phone: string;
+          external_ref: string | null;
+          id: number;
+          patient_name: string;
+          procedure_name: string;
+          starts_at: string;
+        }[];
+      };
       gen_random_uuid: { Args: Record<PropertyKey, never>; Returns: string };
       gen_salt: { Args: { "": string }; Returns: string };
       get_clinic_secret: {
         Args: { p_clinic_id: string; p_kind: string };
         Returns: string;
       };
+      idle_conversations: {
+        Args: { p_default_hours: number; p_limit: number };
+        Returns: { clinic_id: string; id: number; last_message_at: string }[];
+      };
+      invoke_cron_route: { Args: { p_path: string }; Returns: number };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_clinic_member: { Args: { p_clinic_id: string }; Returns: boolean };
       pgp_armor_headers: {
         Args: { "": string };
         Returns: Record<string, unknown>[];
       };
+      run_daily_cleanup: { Args: Record<PropertyKey, never>; Returns: Json };
       set_clinic_secret: {
         Args: { p_clinic_id: string; p_kind: string; p_value: string };
         Returns: undefined;

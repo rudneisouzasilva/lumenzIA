@@ -21,6 +21,10 @@ import { cn } from "@/lib/utils";
 
 import { CommandPalette } from "./command-palette";
 import { NAV_SECTIONS, isActive } from "./nav";
+import { usePendingCount } from "./pending-watcher";
+
+// Telas que precisam de largura (duas colunas de conversa, gráficos).
+const WIDE_ROUTES = ["/painel/atendimento", "/painel/relatorios"];
 
 // A barra lateral recolhida é uma preferência do navegador (não precisa ir para o banco).
 const COLLAPSED_KEY = "lumenzia:sidebar-collapsed";
@@ -54,11 +58,15 @@ function writeCollapsed(value: boolean) {
 
 export function PanelShell({
   clinicSlot,
+  watcherSlot,
   children,
 }: {
   clinicSlot: React.ReactNode;
+  watcherSlot?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const wide = WIDE_ROUTES.some((r) => isActive(pathname, r));
   const collapsed = useSyncExternalStore(subscribe, readCollapsed, () => false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -155,7 +163,12 @@ export function PanelShell({
             </div>
           </div>
         </header>
-        <main className="relative mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        <main
+          className={cn(
+            "relative mx-auto w-full flex-1 px-4 py-8 sm:px-6 sm:py-10",
+            wide ? "max-w-7xl" : "max-w-4xl",
+          )}
+        >
           <div
             aria-hidden
             className="pointer-events-none absolute -top-40 left-1/2 -z-10 size-[36rem] -translate-x-1/2 rounded-full bg-primary/8 blur-3xl"
@@ -180,6 +193,7 @@ export function PanelShell({
       </Dialog>
 
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
+      {watcherSlot}
     </div>
   );
 }
@@ -192,6 +206,7 @@ function SidebarNav({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const pendingCount = usePendingCount();
 
   return (
     <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
@@ -242,6 +257,19 @@ function SidebarNav({
                     <span className={cn("relative", collapsed && "sr-only")}>
                       {item.label}
                     </span>
+                    {item.href === "/painel/atendimento" &&
+                      pendingCount > 0 && (
+                        <span
+                          className={cn(
+                            "relative ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white tabular-nums",
+                            collapsed &&
+                              "absolute top-0.5 right-1 ml-0 h-4 min-w-4 px-1 text-[10px]",
+                          )}
+                          aria-label={`${pendingCount} precisando de atendimento`}
+                        >
+                          {pendingCount}
+                        </span>
+                      )}
                   </Link>
                 </li>
               );

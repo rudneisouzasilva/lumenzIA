@@ -1,7 +1,9 @@
 import {
+  BarChart3,
   CalendarClock,
   CreditCard,
   FlaskConical,
+  Headset,
   Images,
   LayoutDashboard,
   ListChecks,
@@ -26,9 +28,26 @@ export type NavItem = {
 
 export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   {
-    title: "Assistente",
+    title: "Atendimento",
     items: [
       { href: "/painel", label: "Visão geral", icon: LayoutDashboard },
+      {
+        href: "/painel/atendimento",
+        label: "Conversas",
+        icon: Headset,
+        keywords: "atendimento whatsapp caixa de entrada assumir humano fila",
+      },
+      {
+        href: "/painel/relatorios",
+        label: "Relatórios",
+        icon: BarChart3,
+        keywords: "dashboard indicadores gráficos exportar csv motivos",
+      },
+    ],
+  },
+  {
+    title: "Assistente",
+    items: [
       {
         href: "/painel/comecar",
         label: "Passo a passo",
