@@ -9,8 +9,14 @@ import {
 } from "./env";
 
 // Só para quem está logado; sem sessão, vai para o login e volta depois.
-const PRIVATE_PREFIXES = ["/assinatura", "/pagamento", "/redefinir-senha"];
-// Só para quem NÃO está logado; com sessão, vai direto para a assinatura.
+const PRIVATE_PREFIXES = [
+  "/painel",
+  "/assinatura",
+  "/pagamento",
+  "/redefinir-senha",
+];
+// Só para quem NÃO está logado; com sessão, vai direto para o painel (que manda para a
+// assinatura quando ela ainda não está ativa).
 const GUEST_ONLY = ["/entrar", "/cadastro"];
 
 function matches(pathname: string, prefixes: string[]) {
@@ -63,7 +69,11 @@ export async function updateSession(request: NextRequest) {
     const next = request.nextUrl.searchParams.get("next");
     const plan = request.nextUrl.searchParams.get("plano");
     const target =
-      next?.startsWith("/") && !next.startsWith("//") ? next : "/assinatura";
+      next?.startsWith("/") && !next.startsWith("//")
+        ? next
+        : plan
+          ? "/assinatura"
+          : "/painel";
     return redirectKeepingCookies(request, response, target, {
       ...(plan && !next ? { plano: plan } : {}),
     });

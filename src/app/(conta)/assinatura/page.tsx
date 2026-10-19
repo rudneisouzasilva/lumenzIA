@@ -1,6 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { CheckCircle2, Clock3, KeyRound, TriangleAlert } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+  KeyRound,
+  Settings2,
+  TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -232,8 +238,11 @@ function ActiveSubscription({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t p-6">
-        <Button disabled title="Chega na próxima etapa">
-          Configurar a assistente (em breve)
+        <Button asChild>
+          <Link href="/painel">
+            <Settings2 />
+            Configurar a assistente
+          </Link>
         </Button>
         {canCancel && <CancelRenewalButton until={formatDate(until)} />}
       </div>
