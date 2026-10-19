@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Building2 } from "lucide-react";
 
+import { PendingWatcher } from "@/components/painel/pending-watcher";
 import { PanelShell } from "@/components/painel/shell";
 import { getPanelContext } from "@/lib/painel/context";
 
@@ -22,6 +23,11 @@ export default function PanelLayout({ children }: LayoutProps<"/painel">) {
           <ClinicName />
         </Suspense>
       }
+      watcherSlot={
+        <Suspense fallback={null}>
+          <Watcher />
+        </Suspense>
+      }
     >
       {children}
     </PanelShell>
@@ -36,4 +42,9 @@ async function ClinicName() {
       <span className="truncate">{clinic.name}</span>
     </span>
   );
+}
+
+async function Watcher() {
+  const { clinic } = await getPanelContext();
+  return <PendingWatcher clinicId={clinic.id} />;
 }

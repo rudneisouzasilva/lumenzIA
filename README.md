@@ -96,17 +96,19 @@ pago.
 Fica em `/painel` e só abre com a assinatura ativa (sem ela, a pessoa vai para `/assinatura`). Depois
 do primeiro pagamento, o botão "Configurar a assistente" leva ao passo a passo (`/painel/comecar`).
 
-| Tela                                  | O que a clínica configura                                       |
-| ------------------------------------- | --------------------------------------------------------------- |
-| Visão geral                           | Progresso da configuração e liga/desliga a assistente           |
-| Assistente                            | Nome, tom de voz, informações da clínica, regras e encerramento |
-| Perguntas frequentes, Perguntas da IA | Listas com arrastar para reordenar                              |
-| Fotos                                 | Envio para o Storage (reduzidas para JPEG de até 1600 px)       |
-| Procedimentos, Profissionais, Motivos | Listas com arrastar para reordenar                              |
-| Horários                              | Dias, horário, feriados, outros fechamentos e lembrete          |
-| Conversas anteriores                  | Exemplos reais de atendimento                                   |
-| Testar assistente                     | Conversa de teste com a IA (nada é salvo nem enviado)           |
-| Minha conta                           | Nome, WhatsApp, nome da clínica, equipe e troca de senha        |
+| Tela                                  | O que a clínica configura                                        |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| Visão geral                           | Progresso da configuração e liga/desliga a assistente            |
+| Conversas                             | Caixa de entrada ao vivo: assumir, responder, devolver, encerrar |
+| Relatórios                            | Indicadores, conversas por dia, motivos, agendamentos e CSV      |
+| Assistente                            | Nome, tom de voz, informações da clínica, regras e encerramento  |
+| Perguntas frequentes, Perguntas da IA | Listas com arrastar para reordenar                               |
+| Fotos                                 | Envio para o Storage (reduzidas para JPEG de até 1600 px)        |
+| Procedimentos, Profissionais, Motivos | Listas com arrastar para reordenar                               |
+| Horários                              | Dias, horário, feriados, outros fechamentos e lembrete           |
+| Conversas anteriores                  | Exemplos reais de atendimento                                    |
+| Testar assistente                     | Conversa de teste com a IA (nada é salvo nem enviado)            |
+| Minha conta                           | Nome, WhatsApp, nome da clínica, equipe e troca de senha         |
 
 Tudo é gravado por Server Actions (`src/app/(painel)/painel/actions.ts`) com o cliente do usuário,
 então o RLS confere a clínica de novo; a clínica vem sempre do login, nunca do navegador. A
@@ -133,6 +135,41 @@ Para ligar no WhatsApp: crie o app na Meta, cadastre o webhook
 `https://<domínio>/api/webhooks/whatsapp` com o mesmo `WHATSAPP_VERIFY_TOKEN` e assine o campo
 `messages`. O número (`clinics.whatsapp_phone_number_id`) e o token (no Vault, por
 `set_clinic_secret`) de cada clínica são configurados pela equipe LumenzIA.
+
+## Atendimento ao vivo e relatórios
+
+- `/painel/atendimento` mostra as conversas em andamento pelo Supabase Realtime (`conversations` e
+  `messages` estão na publicação; o RLS entrega só as da clínica). As que a IA passou para a
+  equipe aparecem primeiro e ganham um selo no menu e um aviso em qualquer tela do painel.
+- "Assumir" põe a conversa em `equipe` e a IA para de responder; responder pelo painel também
+  assume. "Devolver para a IA" volta para `ia`. A resposta sai pelo número da clínica e grava
+  quem enviou (`messages.sent_by`). Fora da janela de 24 horas do WhatsApp o envio é bloqueado.
+- "Encerrar" fecha na hora e a IA classifica motivo, desfecho e resumo (o mesmo do job).
+- `/painel/relatorios` lê `conversation_stats` (dias no horário de Brasília) e exporta CSV com
+  ponto e vírgula em `/painel/relatorios/exportar`.
+
+## Jobs automáticos (pg_cron)
+
+A migração `20261019000007_attendance_reports_jobs.sql` agenda tudo no próprio Supabase:
+
+| Job                     | Quando           | O que faz                                                                          |
+| ----------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| `lumenzia-lembretes`    | a cada 5 min     | `/api/cron/lembretes`: lembrete por template antes do horário                      |
+| `lumenzia-classificar`  | a cada 15 min    | `/api/cron/classificar`: encerra e classifica conversas paradas                    |
+| `lumenzia-agenda`       | 06:00 (Brasília) | `/api/cron/agenda`: traz os agendamentos da agenda da clínica                      |
+| `lumenzia-limpeza`      | 06:30 (Brasília) | `run_daily_cleanup()`: conclui e apaga agendamentos antigos, auditoria de 12 meses |
+| `lumenzia-limpeza-cron` | 06:45 (Brasília) | apaga o histórico de execuções do pg_cron com mais de 7 dias                       |
+
+Os três primeiros chamam o site pelo `pg_net` com `Authorization: Bearer <senha>`. O endereço
+(`lumenzia_app_url`) e a senha (`lumenzia_cron_secret`, gerada pela migração) ficam no Vault, e
+a mesma senha vai na variável `CRON_SECRET` da Vercel. Para ver a senha, rode no SQL Editor:
+
+```sql
+select decrypted_secret from vault.decrypted_secrets where name = 'lumenzia_cron_secret';
+```
+
+As rotas respondem na hora e trabalham depois com `after()`. O histórico fica em
+`cron.job_run_details` (execução do pg_cron) e `net._http_response` (resposta do site).
 
 ## Scripts
 

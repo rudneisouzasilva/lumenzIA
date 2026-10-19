@@ -174,7 +174,7 @@ function utcToBrasilia(date: Date) {
   return new Date(date.getTime() - 3 * 3600_000).toISOString().slice(0, 16);
 }
 
-function durationFor(
+export function durationFor(
   services: { name: string; duration_minutes: number }[],
   procedimento: unknown,
 ) {

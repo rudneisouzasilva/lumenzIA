@@ -256,3 +256,100 @@ export async function generateReply({
   }
   return { ...parseReply(raw, context.images), toolCalls };
 }
+
+export type Classification = {
+  reason: string | null;
+  status: "concluida" | "abandonada";
+  summary: string;
+};
+
+/**
+ * Classifica uma conversa encerrada: o motivo do contato (um dos cadastrados pela clínica, ou
+ * null) e se ela foi concluída ou abandonada, com um resumo curto. Usado ao encerrar conversas,
+ * nunca durante o atendimento.
+ */
+export async function classifyConversation({
+  reasons,
+  messages,
+}: {
+  reasons: { name: string; description: string }[];
+  messages: { role: "user" | "model" | "staff"; content: string }[];
+}): Promise<Classification> {
+  const who = { user: "Paciente", model: "Assistente", staff: "Equipe" };
+  const transcript = messages
+    .map((m) => `${who[m.role]}: ${m.content}`)
+    .join("\n")
+    .slice(-12_000); // conversas muito longas: o final é o que decide o desfecho
+  const reasonList = reasons.length
+    ? reasons
+        .map((r) => `- "${r.name}": ${r.description || "sem descrição"}`)
+        .join("\n")
+    : null;
+
+  const prompt = [
+    "Você analisa uma conversa encerrada entre uma clínica de estética e um paciente pelo WhatsApp.",
+    "",
+    "Definições de status:",
+    '- "concluida": a dúvida foi respondida, um agendamento foi encaminhado ou confirmado, ou a conversa chegou a um fim natural.',
+    '- "abandonada": o paciente parou de responder no meio, pediu atendimento humano sem resolução, ou a clínica não conseguiu ajudar.',
+    "",
+    reasonList
+      ? `Motivos de contato possíveis (escolha o que melhor descreve, com o nome exato, ou null se nenhum combinar):\n${reasonList}`
+      : "Não há motivos cadastrados: use null em motivo.",
+    "",
+    "O resumo tem até 20 palavras, em português.",
+    "",
+    "Conversa:",
+    transcript,
+  ].join("\n");
+
+  const model = geminiModel();
+  let text: string;
+  try {
+    const response = await gemini().models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0,
+        maxOutputTokens: 256,
+        thinkingConfig: thinkingConfig(model),
+        responseMimeType: "application/json",
+        responseJsonSchema: {
+          type: "object",
+          properties: {
+            motivo: { type: ["string", "null"] },
+            status: { type: "string", enum: ["concluida", "abandonada"] },
+            resumo: { type: "string" },
+          },
+          required: ["motivo", "status", "resumo"],
+        },
+      },
+    });
+    text = response.text ?? "";
+  } catch (e) {
+    if (e instanceof AiError) throw e;
+    const status = e instanceof ApiError ? e.status : "rede";
+    console.error(`[gemini] classificação ${status}:`, (e as Error).message);
+    throw new AiError("Não foi possível classificar a conversa agora.");
+  }
+
+  let parsed: { motivo?: unknown; status?: unknown; resumo?: unknown };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new AiError("A classificação veio num formato inesperado.");
+  }
+  if (parsed.status !== "concluida" && parsed.status !== "abandonada") {
+    throw new AiError("A classificação veio num formato inesperado.");
+  }
+  const wanted = String(parsed.motivo ?? "")
+    .trim()
+    .toLowerCase();
+  const reason =
+    reasons.find((r) => r.name.trim().toLowerCase() === wanted)?.name ?? null;
+  return {
+    reason,
+    status: parsed.status,
+    summary: String(parsed.resumo ?? "").slice(0, 500),
+  };
+}
