@@ -101,10 +101,4 @@ export async function getPlans(): Promise<Plan[]> {
   }));
 }
 
-export function formatPrice(cents: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
-  }).format(cents / 100);
-}
+export { formatPrice } from "@/lib/format";

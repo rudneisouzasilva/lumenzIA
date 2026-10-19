@@ -57,6 +57,40 @@ fotos, segredos no Vault, Realtime e os planos iniciais). Para criar o banco num
 Para tornar alguém da equipe LumenzIA administrador, rode no SQL Editor do Supabase:
 `update public.profiles set is_admin = true where id = (select id from auth.users where email = 'pessoa@exemplo.com');`
 
+## Contas e assinatura
+
+### Login (Supabase Auth)
+
+Telas: `/entrar`, `/cadastro`, `/recuperar-senha` e `/redefinir-senha`. O cadastro envia
+`full_name`, `clinic_name` e `phone` em `options.data`, e o gatilho `handle_new_user` cria o perfil e
+a clínica. Os links dos e-mails voltam para `/auth/confirm`, que aceita `?code=` (padrão do Supabase)
+e `?token_hash=&type=`.
+
+No painel do Supabase, em **Authentication → URL Configuration**:
+
+- **Site URL**: o endereço do site (em produção, o domínio com `https://`).
+- **Redirect URLs**: adicione `http://localhost:3000/**` e `https://<seu-dominio>/**` (e o domínio de
+  prévia da Vercel, se usar).
+
+Se a confirmação de e-mail estiver desligada (**Authentication → Sign In / Providers → Confirm
+email**), o cadastro já entra direto. O e-mail padrão do Supabase tem limite de poucos envios por
+hora: para produção, configure um SMTP próprio (etapa 8).
+
+### Cobrança (Mercado Pago)
+
+`/assinatura` mostra os planos e o estado da assinatura; `/pagamento` é para onde a pessoa volta
+depois de pagar. Com `PAYMENT_MODE=mock` (padrão), nada é cobrado: a página de pagamento tem um botão
+que simula a primeira cobrança aprovada. Para cobrar de verdade:
+
+1. `PAYMENT_MODE=mercadopago` e `MP_ACCESS_TOKEN` (Access Token de produção).
+2. Em **Suas integrações → Webhooks**, cadastre `https://<seu-dominio>/api/webhooks/mercadopago` com
+   o evento **Planos e assinaturas** e copie a assinatura secreta para `MP_WEBHOOK_SECRET`.
+
+Quem libera o acesso é a cobrança aprovada (`subscription_authorized_payment`), aplicada pela função
+`apply_subscription_payment` (migração `20261019000005_billing.sql`): 30 dias a cada cobrança e 3
+dias de tolerância depois de uma recusa. Cancelar a renovação mantém o acesso até o fim do período
+pago.
+
 ## Scripts
 
 | Comando                           | O que faz                                         |

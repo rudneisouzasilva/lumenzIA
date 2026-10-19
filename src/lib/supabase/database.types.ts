@@ -780,6 +780,15 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      apply_subscription_payment: {
+        Args: {
+          p_amount_cents: number;
+          p_approved: boolean;
+          p_provider_payment_id: string;
+          p_subscription_id: string;
+        };
+        Returns: boolean;
+      };
       dearmor: { Args: { "": string }; Returns: string };
       gen_random_uuid: { Args: Record<PropertyKey, never>; Returns: string };
       gen_salt: { Args: { "": string }; Returns: string };
