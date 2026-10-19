@@ -1,6 +1,7 @@
 import {
   CalendarClock,
   CreditCard,
+  FlaskConical,
   Images,
   LayoutDashboard,
   ListChecks,
@@ -33,6 +34,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "Passo a passo",
         icon: Rocket,
         keywords: "onboarding começar configurar",
+      },
+      {
+        href: "/painel/testar",
+        label: "Testar assistente",
+        icon: FlaskConical,
+        keywords: "teste simular conversa chat",
       },
       {
         href: "/painel/assistente",

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Circle,
+  FlaskConical,
   Images,
   LayoutDashboard,
   ListChecks,
@@ -31,7 +32,14 @@ export default function OverviewPage() {
         icon={LayoutDashboard}
         title="Visão geral"
         description="O que já está pronto na sua assistente e o que falta configurar."
-      />
+      >
+        <Button asChild variant="outline">
+          <Link href="/painel/testar">
+            <FlaskConical />
+            Testar assistente
+          </Link>
+        </Button>
+      </PageHeader>
       <Suspense fallback={<PanelSkeleton />}>
         <Overview />
       </Suspense>

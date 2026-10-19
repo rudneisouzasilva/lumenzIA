@@ -105,12 +105,34 @@ do primeiro pagamento, o botão "Configurar a assistente" leva ao passo a passo 
 | Procedimentos, Profissionais, Motivos | Listas com arrastar para reordenar                              |
 | Horários                              | Dias, horário, feriados, outros fechamentos e lembrete          |
 | Conversas anteriores                  | Exemplos reais de atendimento                                   |
+| Testar assistente                     | Conversa de teste com a IA (nada é salvo nem enviado)           |
 | Minha conta                           | Nome, WhatsApp, nome da clínica, equipe e troca de senha        |
 
 Tudo é gravado por Server Actions (`src/app/(painel)/painel/actions.ts`) com o cliente do usuário,
 então o RLS confere a clínica de novo; a clínica vem sempre do login, nunca do navegador. A
 assistente só pode ser ligada depois que a equipe LumenzIA conectar o número do WhatsApp. Ctrl+K
 abre a busca rápida.
+
+## Motor da IA (WhatsApp + Gemini)
+
+- `src/lib/ai/prompt.ts` monta as instruções da assistente com o que a clínica salvou no painel
+  (o feriado nacional do dia vem de `holidays.ts`, calculado no servidor). As fotos aparecem para
+  o modelo como `FOTO 1`, `FOTO 2`...; a resposta marca `[[FOTO:N]]` para enviar uma e
+  `[[ESCALAR]]` para chamar a equipe.
+- `src/lib/ai/engine.ts` chama o Gemini (`@google/genai`, modelo em `GEMINI_MODEL`) e resolve as
+  ferramentas de agenda em até 4 rodadas.
+- `src/lib/ai/agenda.ts` fala com a agenda da clínica: modo `webhook` (um POST para Zapier, Make
+  ou n8n) ou `custom` (molde por ação, com conta de serviço do Google opcional), e guarda uma cópia
+  local em `appointments`.
+- `/api/webhooks/whatsapp` confere a assinatura da Meta (`META_APP_SECRET`), responde 200 na hora
+  e processa depois com `after()`: guarda a mensagem (o id da Meta evita responder duas vezes),
+  respeita "a equipe assumiu", a assinatura e a cota do plano, responde, envia a foto e escala para
+  a equipe quando preciso.
+
+Para ligar no WhatsApp: crie o app na Meta, cadastre o webhook
+`https://<domínio>/api/webhooks/whatsapp` com o mesmo `WHATSAPP_VERIFY_TOKEN` e assine o campo
+`messages`. O número (`clinics.whatsapp_phone_number_id`) e o token (no Vault, por
+`set_clinic_secret`) de cada clínica são configurados pela equipe LumenzIA.
 
 ## Scripts
 

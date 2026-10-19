@@ -14,19 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_IMAGES } from "@/lib/painel/validation";
 import { createClient } from "@/lib/supabase/client";
-import { supabaseUrl } from "@/lib/supabase/env";
+import { IMAGES_BUCKET as BUCKET, publicImageUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
-const BUCKET = "clinic-images";
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 const MAX_SIDE = 1600;
 
 export type Photo = { id: string; storage_path: string; description: string };
-
-export function publicUrl(path: string) {
-  return `${supabaseUrl}/storage/v1/object/public/${BUCKET}/${path}`;
-}
 
 /**
  * Reduz a foto para no máximo 1600 px e converte para JPEG (o formato que o WhatsApp aceita em
@@ -335,7 +330,7 @@ function PhotoCard({
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         {/* eslint-disable-next-line @next/next/no-img-element -- já reduzida no envio, servida pelo Storage */}
         <img
-          src={publicUrl(photo.storage_path)}
+          src={publicImageUrl(photo.storage_path)}
           alt={photo.description}
           loading="lazy"
           className="size-full object-cover transition-transform duration-500 group-hover:scale-105"

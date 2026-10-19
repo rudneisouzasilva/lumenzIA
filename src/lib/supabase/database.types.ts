@@ -789,6 +789,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      count_ai_message: {
+        Args: { p_subscription_id: string };
+        Returns: undefined;
+      };
       dearmor: { Args: { "": string }; Returns: string };
       gen_random_uuid: { Args: Record<PropertyKey, never>; Returns: string };
       gen_salt: { Args: { "": string }; Returns: string };
