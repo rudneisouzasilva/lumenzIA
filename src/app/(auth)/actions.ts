@@ -35,6 +35,10 @@ function authErrorMessage(error: { code?: string; message: string }) {
     case "over_email_send_rate_limit":
     case "over_request_rate_limit":
       return "Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.";
+    case "email_address_invalid":
+      return "Este e-mail não é aceito. Confira se digitou certo ou use outro.";
+    case "email_address_not_authorized":
+      return "Ainda não conseguimos enviar e-mail para este endereço. Fale com a gente pelo WhatsApp.";
     case "signup_disabled":
       return "Novos cadastros estão desativados no momento.";
     default:
