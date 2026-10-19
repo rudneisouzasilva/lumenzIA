@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { sendImage, sendTemplate, sendText, type Sender } from "./client";
+import { handlePartnerRemoved } from "./embedded-signup";
 
 /** Tempo sem mensagens que encerra uma conversa, quando a clínica não escolheu outro. */
 export const DEFAULT_CONVERSATION_TIMEOUT_HOURS = 6;
@@ -43,8 +44,12 @@ type InboundMessage = {
 export type WhatsappEvent = {
   object?: string;
   entry?: {
+    id?: string; // a conta do WhatsApp Business (WABA)
     changes?: {
+      field?: string;
       value?: {
+        event?: string; // field = "account_update"
+        waba_info?: { waba_id?: string };
         metadata?: { phone_number_id?: string };
         messages?: InboundMessage[];
         statuses?: {
@@ -70,6 +75,22 @@ export async function handleWhatsappEvent(body: WhatsappEvent) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
       if (!value) continue;
+
+      if (
+        change.field === "account_update" &&
+        value.event === "PARTNER_REMOVED"
+      ) {
+        const wabaId = value.waba_info?.waba_id ?? entry.id;
+        if (wabaId) {
+          await handlePartnerRemoved(wabaId).catch((e) =>
+            console.error(
+              "[whatsapp] parceiro removido:",
+              (e as Error).message,
+            ),
+          );
+        }
+        continue;
+      }
 
       for (const st of value.statuses ?? []) {
         if (st.status === "failed") {

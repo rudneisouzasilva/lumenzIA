@@ -10,6 +10,7 @@ import {
   MessageCircleQuestion,
   MessagesSquare,
   Rocket,
+  Smartphone,
   Sparkles,
   Stethoscope,
   Tags,
@@ -124,6 +125,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: "Conta",
     items: [
+      {
+        href: "/painel/whatsapp",
+        label: "WhatsApp",
+        icon: Smartphone,
+        keywords: "conectar número meta facebook embedded",
+      },
       {
         href: "/painel/conta",
         label: "Minha conta",
