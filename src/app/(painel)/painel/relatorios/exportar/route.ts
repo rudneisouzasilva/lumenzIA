@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { connection, type NextRequest } from "next/server";
 
 import { getMyClinic } from "@/lib/billing/subscription";
 import { parsePeriod } from "@/lib/painel/period";
@@ -33,6 +33,7 @@ const when = (iso: string | null) =>
 
 /** Conversas do período em CSV, lidas como a pessoa logada (o RLS limita à clínica dela). */
 export async function GET(request: NextRequest) {
+  await connection(); // sempre na hora do pedido, nunca gerado no build
   const supabase = await createClient();
   const {
     data: { user },
