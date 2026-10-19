@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CalendarClock,
   Check,
+  FlaskConical,
   Images,
   Loader2,
   MessageCircleQuestion,
@@ -293,9 +294,17 @@ function Done() {
           </Link>
         ))}
       </div>
-      <Button asChild size="lg" className="mt-8">
-        <Link href="/painel">Ir para a visão geral</Link>
-      </Button>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <Button asChild size="lg">
+          <Link href="/painel/testar">
+            <FlaskConical />
+            Testar a assistente
+          </Link>
+        </Button>
+        <Button asChild size="lg" variant="outline">
+          <Link href="/painel">Ir para a visão geral</Link>
+        </Button>
+      </div>
     </div>
   );
 }
