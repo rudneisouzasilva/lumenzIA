@@ -168,7 +168,7 @@ async function Overview() {
                   ? settings.is_active
                     ? "A assistente está respondendo os pacientes."
                     : "A assistente está pausada."
-                  : "A equipe LumenzIA conecta o número da clínica e avisa você."}
+                  : "Conecte o número da clínica para a assistente começar a responder."}
               </p>
             </div>
             <AssistantToggle
@@ -207,10 +207,21 @@ async function Overview() {
                 : "Pausada"
               : "Aguardando conexão do número"}
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Enquanto isso, deixe tudo configurado: quando o número for
-            conectado, é só ligar.
-          </p>
+          {connected ? (
+            <Link
+              href="/painel/whatsapp"
+              className="mt-4 inline-block text-xs text-muted-foreground underline-offset-4 hover:underline"
+            >
+              Ver o número conectado
+            </Link>
+          ) : (
+            <Button asChild className="mt-4 w-full sm:w-auto">
+              <Link href="/painel/whatsapp">
+                <Smartphone />
+                Conectar WhatsApp
+              </Link>
+            </Button>
+          )}
         </PanelCard>
       </div>
 

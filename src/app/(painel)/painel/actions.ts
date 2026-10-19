@@ -126,7 +126,7 @@ export async function setAssistantActive(active: boolean): Promise<FormResult> {
       .single();
     if (!data?.whatsapp_phone_number_id) {
       return fail(
-        "O WhatsApp da clínica ainda não foi conectado. Fale com a equipe LumenzIA.",
+        "Conecte o WhatsApp da clínica antes de ligar a assistente (menu WhatsApp).",
       );
     }
   }

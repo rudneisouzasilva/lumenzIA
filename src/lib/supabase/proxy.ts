@@ -11,6 +11,7 @@ import {
 // Só para quem está logado; sem sessão, vai para o login e volta depois.
 const PRIVATE_PREFIXES = [
   "/painel",
+  "/admin",
   "/assinatura",
   "/pagamento",
   "/redefinir-senha",
@@ -64,6 +65,12 @@ export async function updateSession(request: NextRequest) {
     return redirectKeepingCookies(request, response, "/entrar", {
       next: pathname + search,
     });
+  }
+  // Área da equipe LumenzIA: quem não é admin nem vê a moldura (as páginas conferem de novo).
+  if (loggedIn && matches(pathname, ["/admin"])) {
+    const { data: isAdmin } = await supabase.rpc("is_admin");
+    if (!isAdmin)
+      return redirectKeepingCookies(request, response, "/painel", {});
   }
   if (loggedIn && matches(pathname, GUEST_ONLY)) {
     const next = request.nextUrl.searchParams.get("next");

@@ -108,11 +108,12 @@ do primeiro pagamento, o botão "Configurar a assistente" leva ao passo a passo 
 | Horários                              | Dias, horário, feriados, outros fechamentos e lembrete           |
 | Conversas anteriores                  | Exemplos reais de atendimento                                    |
 | Testar assistente                     | Conversa de teste com a IA (nada é salvo nem enviado)            |
+| WhatsApp                              | Botão “Conectar WhatsApp” (Cadastro Incorporado da Meta)         |
 | Minha conta                           | Nome, WhatsApp, nome da clínica, equipe e troca de senha         |
 
 Tudo é gravado por Server Actions (`src/app/(painel)/painel/actions.ts`) com o cliente do usuário,
 então o RLS confere a clínica de novo; a clínica vem sempre do login, nunca do navegador. A
-assistente só pode ser ligada depois que a equipe LumenzIA conectar o número do WhatsApp. Ctrl+K
+assistente só pode ser ligada depois que o número do WhatsApp for conectado. Ctrl+K
 abre a busca rápida.
 
 ## Motor da IA (WhatsApp + Gemini)
@@ -132,9 +133,28 @@ abre a busca rápida.
   a equipe quando preciso.
 
 Para ligar no WhatsApp: crie o app na Meta, cadastre o webhook
-`https://<domínio>/api/webhooks/whatsapp` com o mesmo `WHATSAPP_VERIFY_TOKEN` e assine o campo
-`messages`. O número (`clinics.whatsapp_phone_number_id`) e o token (no Vault, por
-`set_clinic_secret`) de cada clínica são configurados pela equipe LumenzIA.
+`https://<domínio>/api/webhooks/whatsapp` com o mesmo `WHATSAPP_VERIFY_TOKEN` e assine os campos
+`messages` e `account_update`. O passo a passo completo está em
+[docs/LANCAMENTO.md](docs/LANCAMENTO.md#5-whatsapp-app-da-lumenzia-na-meta-tech-provider).
+
+### Conectar WhatsApp (Cadastro Incorporado)
+
+A LumenzIA é Tech Provider: um app na Meta, um webhook, e cada clínica conecta o próprio número em
+`/painel/whatsapp` (só a dona da conta). O botão abre o Embedded Signup da Meta pelo SDK do
+Facebook (`META_APP_ID` e `META_EMBEDDED_SIGNUP_CONFIG_ID`). A janela devolve ao navegador o
+número e a conta escolhidos (postMessage) e um `code` de uso único; o servidor
+(`src/lib/whatsapp/embedded-signup.ts`):
+
+1. troca o `code` pelo token com o `META_APP_SECRET`;
+2. confere com esse token que o número pertence à conta (WABA) escolhida;
+3. inscreve o app nos avisos da conta (`subscribed_apps`), o que faz as mensagens chegarem ao
+   webhook;
+4. registra o número na Cloud API com um PIN aleatório de verificação em duas etapas (pulado em
+   coexistência com o app WhatsApp Business);
+5. guarda token e PIN no Vault (`set_clinic_secret`) e o número em `clinics`.
+
+“Desconectar” cancela a inscrição, apaga token e PIN e pausa a assistente. Se a clínica remover a
+LumenzIA pela Meta, o aviso `account_update`/`PARTNER_REMOVED` desliga a conexão sozinho.
 
 ## Atendimento ao vivo e relatórios
 
@@ -171,6 +191,27 @@ select decrypted_secret from vault.decrypted_secrets where name = 'lumenzia_cron
 As rotas respondem na hora e trabalham depois com `after()`. O histórico fica em
 `cron.job_run_details` (execução do pg_cron) e `net._http_response` (resposta do site).
 
+## Painel da equipe LumenzIA (`/admin`)
+
+Só abre para quem tem `profiles.is_admin` (o proxy manda os demais para `/painel`, e cada página
+confere de novo). Para virar admin, veja o SQL em “Como os dados se organizam”.
+
+- **Clientes**: todas as clínicas (`admin_clinics()`, que traz o e-mail da dona de `auth.users`)
+  com busca, filtros (em dia, sem WhatsApp, pausada, cota acabando, vencidas) e totais.
+- **Ficha da clínica** (`/admin/clinicas/<id>`), em abas: visão geral (assinatura, uso, pessoas,
+  ligar/pausar a assistente, desconectar o WhatsApp), **WhatsApp** (IDs, número, WhatsApp da
+  equipe e token), **Templates** (lembrete e aviso à equipe), **Agenda** (modo webhook ou API
+  própria, JSON das ações e chave) e **Auditoria**.
+- **Auditoria**: tudo o que a equipe muda, e as conexões de WhatsApp, vai para `admin_audit_log`
+  com o que mudou (nunca o valor de um segredo). Fica 12 meses (job de limpeza diária).
+- **Lançamento** (`/admin/lancamento`): confere variáveis, “Confirm email” do Supabase, senha e
+  endereço dos jobs (`launch_status`) e as últimas execuções do pg_cron. O checklist completo
+  está em [docs/LANCAMENTO.md](docs/LANCAMENTO.md).
+
+Segredos são só de escrita no painel: o formulário mostra se existe (`clinic_secret_status`) e
+campo vazio mantém o valor guardado. As gravações usam a chave secreta no servidor, depois de
+conferir que quem pede é admin.
+
 ## Scripts
 
 | Comando                           | O que faz                                         |
@@ -197,4 +238,4 @@ outros: `npx shadcn@latest add <componente>`.
 5. Painel de configuração da assistente
 6. Motor da IA: Gemini, agenda, webhook do WhatsApp
 7. Atendimento em tempo real e analytics
-8. Admin e produção
+8. Admin e produção: painel da equipe, Conectar WhatsApp e [checklist de lançamento](docs/LANCAMENTO.md)

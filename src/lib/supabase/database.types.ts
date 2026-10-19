@@ -178,6 +178,7 @@ export type Database = {
           agenda_api_key_secret_id: string | null;
           clinic_id: string;
           updated_at: string;
+          whatsapp_pin_secret_id: string | null;
           whatsapp_token_secret_id: string | null;
         };
         ComputedFields: never;
@@ -185,12 +186,14 @@ export type Database = {
           agenda_api_key_secret_id?: string | null;
           clinic_id: string;
           updated_at?: string;
+          whatsapp_pin_secret_id?: string | null;
           whatsapp_token_secret_id?: string | null;
         };
         Update: {
           agenda_api_key_secret_id?: string | null;
           clinic_id?: string;
           updated_at?: string;
+          whatsapp_pin_secret_id?: string | null;
           whatsapp_token_secret_id?: string | null;
         };
         Relationships: [
@@ -221,7 +224,11 @@ export type Database = {
           template_language: string;
           tone: string;
           updated_at: string;
+          whatsapp_connected_at: string | null;
+          whatsapp_display_phone: string | null;
           whatsapp_phone_number_id: string | null;
+          whatsapp_verified_name: string | null;
+          whatsapp_waba_id: string | null;
           work_days: number[];
           work_hours_end: string | null;
           work_hours_start: string | null;
@@ -245,7 +252,11 @@ export type Database = {
           template_language?: string;
           tone?: string;
           updated_at?: string;
+          whatsapp_connected_at?: string | null;
+          whatsapp_display_phone?: string | null;
           whatsapp_phone_number_id?: string | null;
+          whatsapp_verified_name?: string | null;
+          whatsapp_waba_id?: string | null;
           work_days?: number[];
           work_hours_end?: string | null;
           work_hours_start?: string | null;
@@ -268,7 +279,11 @@ export type Database = {
           template_language?: string;
           tone?: string;
           updated_at?: string;
+          whatsapp_connected_at?: string | null;
+          whatsapp_display_phone?: string | null;
           whatsapp_phone_number_id?: string | null;
+          whatsapp_verified_name?: string | null;
+          whatsapp_waba_id?: string | null;
           work_days?: number[];
           work_hours_end?: string | null;
           work_hours_start?: string | null;
@@ -780,6 +795,42 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_clinic_members: {
+        Args: { p_clinic_id: string };
+        Returns: {
+          created_at: string;
+          email: string;
+          full_name: string;
+          is_admin: boolean;
+          last_sign_in_at: string | null;
+          phone: string | null;
+          role: Database["public"]["Enums"]["member_role"];
+          user_id: string;
+        }[];
+      };
+      admin_clinics: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          created_at: string;
+          current_period_end: string | null;
+          grace_until: string | null;
+          id: string;
+          is_active: boolean;
+          last_message_at: string | null;
+          members: number;
+          message_quota: number | null;
+          messages_used: number | null;
+          name: string;
+          owner_email: string | null;
+          owner_name: string | null;
+          owner_phone: string | null;
+          plan_name: string | null;
+          subscription_status:
+            Database["public"]["Enums"]["subscription_status"] | null;
+          whatsapp_display_phone: string | null;
+          whatsapp_phone_number_id: string | null;
+        }[];
+      };
       apply_subscription_payment: {
         Args: {
           p_amount_cents: number;
@@ -804,6 +855,7 @@ export type Database = {
           started_at: string;
         }[];
       };
+      clinic_secret_status: { Args: { p_clinic_id: string }; Returns: Json };
       conversation_stats: {
         Args: { p_clinic_id: string; p_from: string; p_to: string };
         Returns: Json;
@@ -838,6 +890,7 @@ export type Database = {
       invoke_cron_route: { Args: { p_path: string }; Returns: number };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_clinic_member: { Args: { p_clinic_id: string }; Returns: boolean };
+      launch_status: { Args: { p_cron_secret: string }; Returns: Json };
       pgp_armor_headers: {
         Args: { "": string };
         Returns: Record<string, unknown>[];
@@ -847,6 +900,7 @@ export type Database = {
         Args: { p_clinic_id: string; p_kind: string; p_value: string };
         Returns: undefined;
       };
+      set_cron_app_url: { Args: { p_url: string }; Returns: undefined };
       shares_clinic_with: { Args: { p_user_id: string }; Returns: boolean };
       storage_clinic_id: { Args: { p_name: string }; Returns: string };
     };
