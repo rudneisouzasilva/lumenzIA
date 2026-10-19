@@ -18,8 +18,8 @@ export async function getAppUrl() {
   return `${proto}://${host}`;
 }
 
-/** Aceita só caminhos internos ("/assinatura"), nunca outro site ("//x.com", "https://..."). */
-export function safeNextPath(value: unknown, fallback = "/assinatura") {
+/** Aceita só caminhos internos ("/painel"), nunca outro site ("//x.com", "https://..."). */
+export function safeNextPath(value: unknown, fallback = "/painel") {
   if (typeof value !== "string") return fallback;
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\"))
     return fallback;

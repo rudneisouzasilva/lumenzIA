@@ -70,9 +70,17 @@ export function PaymentSuccess({
       <p className="mt-3 text-muted-foreground">
         O {planName} está liberado até {until} e renova sozinho todo mês.
       </p>
-      <Button asChild size="lg" className="mt-8">
-        <Link href="/assinatura">Ver minha assinatura</Link>
-      </Button>
+      <div className="mt-8 flex flex-col items-center gap-3">
+        <Button asChild size="lg">
+          <Link href="/painel/comecar">Configurar a assistente</Link>
+        </Button>
+        <Link
+          href="/assinatura"
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          Ver minha assinatura
+        </Link>
+      </div>
     </motion.div>
   );
 }

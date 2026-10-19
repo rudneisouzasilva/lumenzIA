@@ -91,6 +91,27 @@ Quem libera o acesso é a cobrança aprovada (`subscription_authorized_payment`)
 dias de tolerância depois de uma recusa. Cancelar a renovação mantém o acesso até o fim do período
 pago.
 
+## Painel da clínica
+
+Fica em `/painel` e só abre com a assinatura ativa (sem ela, a pessoa vai para `/assinatura`). Depois
+do primeiro pagamento, o botão "Configurar a assistente" leva ao passo a passo (`/painel/comecar`).
+
+| Tela                                  | O que a clínica configura                                       |
+| ------------------------------------- | --------------------------------------------------------------- |
+| Visão geral                           | Progresso da configuração e liga/desliga a assistente           |
+| Assistente                            | Nome, tom de voz, informações da clínica, regras e encerramento |
+| Perguntas frequentes, Perguntas da IA | Listas com arrastar para reordenar                              |
+| Fotos                                 | Envio para o Storage (reduzidas para JPEG de até 1600 px)       |
+| Procedimentos, Profissionais, Motivos | Listas com arrastar para reordenar                              |
+| Horários                              | Dias, horário, feriados, outros fechamentos e lembrete          |
+| Conversas anteriores                  | Exemplos reais de atendimento                                   |
+| Minha conta                           | Nome, WhatsApp, nome da clínica, equipe e troca de senha        |
+
+Tudo é gravado por Server Actions (`src/app/(painel)/painel/actions.ts`) com o cliente do usuário,
+então o RLS confere a clínica de novo; a clínica vem sempre do login, nunca do navegador. A
+assistente só pode ser ligada depois que a equipe LumenzIA conectar o número do WhatsApp. Ctrl+K
+abre a busca rápida.
+
 ## Scripts
 
 | Comando                           | O que faz                                         |
