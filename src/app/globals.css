@@ -55,6 +55,7 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-bricolage);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -83,6 +84,9 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  html {
+    @apply scroll-smooth;
   }
   body {
     @apply bg-background text-foreground;
