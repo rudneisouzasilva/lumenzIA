@@ -443,16 +443,92 @@ export type Database = {
           },
         ];
       };
+      contact_stage_history: {
+        Row: {
+          automatic: boolean;
+          changed_at: string;
+          changed_by: string | null;
+          clinic_id: string;
+          contact_id: string;
+          from_stage_id: string | null;
+          id: number;
+          to_stage_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          automatic?: boolean;
+          changed_at?: string;
+          changed_by?: string | null;
+          clinic_id: string;
+          contact_id: string;
+          from_stage_id?: string | null;
+          id?: never;
+          to_stage_id?: string | null;
+        };
+        Update: {
+          automatic?: boolean;
+          changed_at?: string;
+          changed_by?: string | null;
+          clinic_id?: string;
+          contact_id?: string;
+          from_stage_id?: string | null;
+          id?: never;
+          to_stage_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "contact_stage_history_changed_by_fkey";
+            columns: ["changed_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_from_stage_id_fkey";
+            columns: ["from_stage_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_to_stage_id_fkey";
+            columns: ["to_stage_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       contacts: {
         Row: {
           clinic_id: string;
           created_at: string;
+          estimated_value_cents: number | null;
           first_contact_at: string;
           id: string;
           last_contact_at: string;
+          lost_reason_id: string | null;
           name: string;
+          notes: string;
           opted_out_at: string | null;
+          owner_id: string | null;
           phone: string;
+          stage_changed_at: string | null;
+          stage_id: string | null;
           updated_at: string;
           whatsapp_name: string;
         };
@@ -460,24 +536,36 @@ export type Database = {
         Insert: {
           clinic_id: string;
           created_at?: string;
+          estimated_value_cents?: number | null;
           first_contact_at?: string;
           id?: string;
           last_contact_at?: string;
+          lost_reason_id?: string | null;
           name?: string;
+          notes?: string;
           opted_out_at?: string | null;
+          owner_id?: string | null;
           phone: string;
+          stage_changed_at?: string | null;
+          stage_id?: string | null;
           updated_at?: string;
           whatsapp_name?: string;
         };
         Update: {
           clinic_id?: string;
           created_at?: string;
+          estimated_value_cents?: number | null;
           first_contact_at?: string;
           id?: string;
           last_contact_at?: string;
+          lost_reason_id?: string | null;
           name?: string;
+          notes?: string;
           opted_out_at?: string | null;
+          owner_id?: string | null;
           phone?: string;
+          stage_changed_at?: string | null;
+          stage_id?: string | null;
           updated_at?: string;
           whatsapp_name?: string;
         };
@@ -487,6 +575,27 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contacts_lost_reason_id_fkey";
+            columns: ["lost_reason_id"];
+            isOneToOne: false;
+            referencedRelation: "lost_reasons";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contacts_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contacts_stage_id_fkey";
+            columns: ["stage_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stages";
             referencedColumns: ["id"];
           },
         ];
@@ -789,6 +898,39 @@ export type Database = {
           },
         ];
       };
+      lost_reasons: {
+        Row: {
+          clinic_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          sort_order: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          sort_order?: number;
+        };
+        Update: {
+          clinic_id?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          sort_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lost_reasons_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       message_templates: {
         Row: {
           body: string;
@@ -956,6 +1098,48 @@ export type Database = {
             columns: ["subscription_id"];
             isOneToOne: false;
             referencedRelation: "subscriptions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      pipeline_stages: {
+        Row: {
+          auto_rule: string | null;
+          clinic_id: string;
+          color: string;
+          created_at: string;
+          id: string;
+          kind: string;
+          name: string;
+          sort_order: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          auto_rule?: string | null;
+          clinic_id: string;
+          color?: string;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          name: string;
+          sort_order?: number;
+        };
+        Update: {
+          auto_rule?: string | null;
+          clinic_id?: string;
+          color?: string;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          name?: string;
+          sort_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
             referencedColumns: ["id"];
           },
         ];
@@ -1197,6 +1381,10 @@ export type Database = {
           whatsapp_phone_number_id: string | null;
         }[];
       };
+      apply_stage_rule: {
+        Args: { p_contact_id: string; p_rule: string };
+        Returns: undefined;
+      };
       apply_subscription_payment: {
         Args: {
           p_amount_cents: number;
@@ -1284,6 +1472,7 @@ export type Database = {
         Returns: Record<string, unknown>[];
       };
       run_daily_cleanup: { Args: Record<PropertyKey, never>; Returns: Json };
+      seed_pipeline: { Args: { p_clinic_id: string }; Returns: undefined };
       set_clinic_secret: {
         Args: { p_clinic_id: string; p_kind: string; p_value: string };
         Returns: undefined;

@@ -6,6 +6,7 @@ import {
   FlaskConical,
   Headset,
   Images,
+  KanbanSquare,
   LayoutDashboard,
   ListChecks,
   MessageCircleQuestion,
@@ -39,6 +40,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "Conversas",
         icon: Headset,
         keywords: "atendimento whatsapp caixa de entrada assumir humano fila",
+      },
+      {
+        href: "/painel/funil",
+        label: "Funil",
+        icon: KanbanSquare,
+        keywords: "crm comercial kanban etapas leads contatos vendas",
       },
       {
         href: "/painel/mensagens",
