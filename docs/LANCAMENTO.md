@@ -11,14 +11,17 @@ senha e endereço dos jobs) a cada visita.
 
 - [ ] Rodar a migração `supabase/migrations/20261019000008_admin_whatsapp_launch.sql` no **SQL
       Editor** (cole o arquivo inteiro e clique em Run).
-- [ ] Tornar a sua conta administradora (troque o e-mail):
+- [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
+      Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
+      Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
 
   ```sql
   update public.profiles set is_admin = true
    where id = (select id from auth.users where email = 'voce@exemplo.com');
   ```
 
-  Depois disso, **/admin** abre o painel da equipe.
+  Entrando em **/entrar** com esse e-mail e senha, você cai direto em **/admin**. Faça o mesmo para
+  cada pessoa da equipe.
 
 - [ ] Passar o projeto para o plano **Pro**: o gratuito pausa o banco depois de 7 dias sem uso e
       não tem backup diário.

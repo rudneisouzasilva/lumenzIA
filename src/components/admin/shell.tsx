@@ -34,7 +34,7 @@ function isActive(pathname: string, href: string) {
 /** Moldura do painel da equipe LumenzIA: abas no topo, sem a barra lateral da clínica. */
 export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-svh flex-1 flex-col">
+    <div className="flex min-h-svh min-w-0 flex-1 flex-col overflow-x-clip">
       <header className="sticky top-0 z-30 border-b bg-background/75 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
           <Link
@@ -76,7 +76,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <LiveAdminNav />
         </Suspense>
       </header>
-      <main className="relative mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+      <main className="relative mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <div
           aria-hidden
           className="pointer-events-none absolute -top-40 left-1/2 -z-10 size-[36rem] -translate-x-1/2 rounded-full bg-primary/8 blur-3xl"

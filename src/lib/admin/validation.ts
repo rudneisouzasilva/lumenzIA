@@ -65,7 +65,7 @@ const actionConfig = z.object({
 });
 
 /** O JSON do modo "custom": um objeto com uma entrada por ação (veja src/lib/ai/agenda.ts). */
-export const actionsConfigSchema = z.record(
+export const actionsConfigSchema = z.partialRecord(
   z.enum(AGENDA_ACTIONS, "Ação desconhecida."),
   actionConfig,
 );
@@ -81,6 +81,12 @@ export function parseActionsConfig(text: string) {
   const parsed = actionsConfigSchema.safeParse(json);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
+    if (issue.code === "unrecognized_keys") {
+      return {
+        ok: false as const,
+        error: `Ação desconhecida: ${issue.keys.join(", ")}. Use ${AGENDA_ACTIONS.join(", ")}.`,
+      };
+    }
     return {
       ok: false as const,
       error: `${issue.path.join(".") || "JSON"}: ${issue.message}`,

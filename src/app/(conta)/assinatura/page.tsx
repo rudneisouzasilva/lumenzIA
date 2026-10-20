@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import {
   CheckCircle2,
   Clock3,
@@ -63,6 +64,9 @@ async function SubscriptionView({
   }
 
   if (!clinic) {
+    // Conta só da equipe LumenzIA: não assina plano nenhum.
+    const { data: isAdmin } = await supabase.rpc("is_admin");
+    if (isAdmin) redirect("/admin");
     return (
       <Notice
         icon={<TriangleAlert className="size-6 text-destructive" />}

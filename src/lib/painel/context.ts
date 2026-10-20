@@ -20,7 +20,11 @@ import { createClient } from "@/lib/supabase/server";
 export const getPanelContext = cache(async () => {
   const { supabase, user } = await requireUser("/painel");
   const clinic = await getMyClinic(supabase, user.id);
-  if (!clinic) redirect("/assinatura");
+  if (!clinic) {
+    // Conta só da equipe LumenzIA (sem clínica): o lugar dela é o painel da equipe.
+    const { data: isAdmin } = await supabase.rpc("is_admin");
+    redirect(isAdmin ? "/admin" : "/assinatura");
+  }
 
   const subscription = pickActiveSubscription(
     await getClinicSubscriptions(supabase, clinic.id),

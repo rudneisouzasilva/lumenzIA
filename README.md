@@ -194,7 +194,9 @@ As rotas respondem na hora e trabalham depois com `after()`. O histórico fica e
 ## Painel da equipe LumenzIA (`/admin`)
 
 Só abre para quem tem `profiles.is_admin` (o proxy manda os demais para `/painel`, e cada página
-confere de novo). Para virar admin, veja o SQL em “Como os dados se organizam”.
+confere de novo). A conta da equipe não precisa de clínica: crie em Supabase → Authentication →
+Users → Add user (com Auto Confirm) e rode o SQL de “Como os dados se organizam”. Sem clínica, o
+login leva direto para `/admin`.
 
 - **Clientes**: todas as clínicas (`admin_clinics()`, que traz o e-mail da dona de `auth.users`)
   com busca, filtros (em dia, sem WhatsApp, pausada, cota acabando, vencidas) e totais.
