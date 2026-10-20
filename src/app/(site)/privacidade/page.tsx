@@ -62,9 +62,16 @@ export default function PrivacyPage() {
           (tokens e chaves de acesso ficam em um cofre criptografado).
         </li>
         <li>
-          <strong>Conversas e agendamentos:</strong> número de telefone,
-          mensagens trocadas entre pacientes e a assistente, e os agendamentos
-          feitos por ela.
+          <strong>Conversas e agendamentos:</strong> número de telefone e nome
+          do perfil do WhatsApp, mensagens trocadas entre pacientes, a
+          assistente e a equipe, e os agendamentos feitos por ela. Quando a
+          clínica conecta um número que já usa o app WhatsApp Business e
+          autoriza, também os contatos, até 6 meses de histórico e as mensagens
+          que a equipe envia pelo celular.
+        </li>
+        <li>
+          <strong>Dados comerciais da clínica:</strong> etapa de cada contato no
+          funil, anotações, responsável, valor estimado e retomadas marcadas.
         </li>
         <li>
           <strong>Pagamento:</strong> status, valor e identificador da
@@ -97,6 +104,15 @@ export default function PrivacyPage() {
         <li>
           Gerar as respostas da assistente, fazer agendamentos e registrar as
           conversas no painel da clínica (execução de contrato).
+        </li>
+        <li>
+          Enviar, em nome da clínica, mensagens de retomada a quem conversou com
+          ela, na data que a pessoa pediu ou no prazo escolhido pela clínica.
+          Quem responder SAIR deixa de recebê-las.
+        </li>
+        <li>
+          Gerar indicadores e uma análise mensal para a clínica, com números
+          agregados e resumos das conversas, sem nome nem telefone.
         </li>
         <li>
           Garantir a segurança do serviço e prevenir fraudes (legítimo
@@ -139,6 +155,21 @@ export default function PrivacyPage() {
         </li>
       </ul>
       <p>
+        <strong>Google Agenda:</strong> quando a clínica conecta uma conta do
+        Google, a LumenzIA acessa apenas a lista de agendas, os horários
+        ocupados e os eventos que a assistente cria, consulta ou cancela, só
+        para agendar os pacientes da clínica. Esses dados não são usados para
+        publicidade, não são vendidos e não são usados para treinar modelos de
+        IA. O uso e a transferência de informações recebidas das APIs do Google
+        seguem a{" "}
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">
+          Política de Dados do Usuário dos Serviços de API do Google
+        </a>
+        , incluindo os requisitos de Uso Limitado. A clínica pode desconectar a
+        conta a qualquer momento no painel ou nas configurações da conta do
+        Google.
+      </p>
+      <p>
         Alguns desses prestadores podem tratar dados fora do Brasil. Nesses
         casos, adotamos as salvaguardas previstas nos artigos 33 a 36 da LGPD.
       </p>
@@ -148,7 +179,9 @@ export default function PrivacyPage() {
         Mantemos os dados da conta enquanto ela estiver ativa. Conversas e
         configurações são guardadas enquanto a clínica utilizar o serviço e
         podem ser excluídas a pedido. Dados de pagamento podem ser guardados
-        pelo prazo exigido por lei fiscal e contábil.
+        pelo prazo exigido por lei fiscal e contábil. O registro de agendamentos
+        usado nos indicadores, sem nome nem telefone, é apagado depois de 13
+        meses.
       </p>
 
       <h2>7. Seus direitos</h2>
