@@ -2,6 +2,7 @@ import {
   BarChart3,
   Brain,
   CalendarClock,
+  CalendarDays,
   CalendarSync,
   CreditCard,
   FlaskConical,
@@ -148,6 +149,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "Horários",
         icon: CalendarClock,
         keywords: "funcionamento feriados lembrete",
+      },
+      {
+        href: "/painel/agenda",
+        label: "Agenda",
+        icon: CalendarDays,
+        keywords: "google agenda calendar calendário conectar profissional",
       },
       {
         href: "/painel/motivos",

@@ -878,6 +878,58 @@ export type Database = {
           },
         ];
       };
+      google_accounts: {
+        Row: {
+          clinic_id: string;
+          connected_by: string | null;
+          created_at: string;
+          email: string;
+          id: string;
+          last_error: string | null;
+          refresh_token_secret_id: string | null;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          connected_by?: string | null;
+          created_at?: string;
+          email: string;
+          id?: string;
+          last_error?: string | null;
+          refresh_token_secret_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          clinic_id?: string;
+          connected_by?: string | null;
+          created_at?: string;
+          email?: string;
+          id?: string;
+          last_error?: string | null;
+          refresh_token_secret_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "google_accounts_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "google_accounts_connected_by_fkey";
+            columns: ["connected_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       images: {
         Row: {
           clinic_id: string;
@@ -919,6 +971,9 @@ export type Database = {
           actions_config: Json | null;
           clinic_id: string;
           enabled: boolean;
+          google_account_id: string | null;
+          google_calendar_id: string | null;
+          google_calendar_name: string;
           mode: Database["public"]["Enums"]["integration_mode"];
           provider_name: string;
           reminder_hours_before: number;
@@ -930,6 +985,9 @@ export type Database = {
           actions_config?: Json | null;
           clinic_id: string;
           enabled?: boolean;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           mode?: Database["public"]["Enums"]["integration_mode"];
           provider_name?: string;
           reminder_hours_before?: number;
@@ -940,6 +998,9 @@ export type Database = {
           actions_config?: Json | null;
           clinic_id?: string;
           enabled?: boolean;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           mode?: Database["public"]["Enums"]["integration_mode"];
           provider_name?: string;
           reminder_hours_before?: number;
@@ -952,6 +1013,13 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: true;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "integrations_google_account_id_fkey";
+            columns: ["google_account_id"];
+            isOneToOne: false;
+            referencedRelation: "google_accounts";
             referencedColumns: ["id"];
           },
         ];
@@ -1245,6 +1313,9 @@ export type Database = {
       professionals: {
         Row: {
           clinic_id: string;
+          google_account_id: string | null;
+          google_calendar_id: string | null;
+          google_calendar_name: string;
           id: string;
           name: string;
           sort_order: number;
@@ -1252,12 +1323,18 @@ export type Database = {
         ComputedFields: never;
         Insert: {
           clinic_id: string;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           id?: string;
           name: string;
           sort_order?: number;
         };
         Update: {
           clinic_id?: string;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           id?: string;
           name?: string;
           sort_order?: number;
@@ -1268,6 +1345,13 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "professionals_google_account_id_fkey";
+            columns: ["google_account_id"];
+            isOneToOne: false;
+            referencedRelation: "google_accounts";
             referencedColumns: ["id"];
           },
         ];
@@ -1521,6 +1605,10 @@ export type Database = {
         Args: { p_clinic_id: string; p_kind: string };
         Returns: string;
       };
+      get_google_refresh_token: {
+        Args: { p_account_id: string };
+        Returns: string;
+      };
       idle_conversations: {
         Args: { p_default_hours: number; p_limit: number };
         Returns: { clinic_id: string; id: number; last_message_at: string }[];
@@ -1560,6 +1648,10 @@ export type Database = {
         Returns: undefined;
       };
       set_cron_app_url: { Args: { p_url: string }; Returns: undefined };
+      set_google_refresh_token: {
+        Args: { p_account_id: string; p_token: string };
+        Returns: undefined;
+      };
       shares_clinic_with: { Args: { p_user_id: string }; Returns: boolean };
       storage_clinic_id: { Args: { p_name: string }; Returns: string };
       unclassified_conversations: {
@@ -1571,7 +1663,7 @@ export type Database = {
       appointment_status: "agendado" | "concluido" | "cancelado";
       attendance_state: "ia" | "pendente" | "equipe";
       conversation_status: "aberta" | "concluida" | "abandonada";
-      integration_mode: "webhook" | "custom";
+      integration_mode: "webhook" | "custom" | "google";
       member_role: "owner" | "staff";
       message_role: "user" | "model" | "staff";
       payment_status: "approved" | "rejected";
@@ -1706,7 +1798,7 @@ export const Constants = {
       appointment_status: ["agendado", "concluido", "cancelado"],
       attendance_state: ["ia", "pendente", "equipe"],
       conversation_status: ["aberta", "concluida", "abandonada"],
-      integration_mode: ["webhook", "custom"],
+      integration_mode: ["webhook", "custom", "google"],
       member_role: ["owner", "staff"],
       message_role: ["user", "model", "staff"],
       payment_status: ["approved", "rejected"],
