@@ -378,6 +378,7 @@ async function mirrorAppointment(
   params: Record<string, unknown>,
   extra: { duracao_minutos?: number },
   result: AgendaResult,
+  conversationId: number | null,
 ) {
   if (result.erro) return;
   const admin = createAdminClient();
@@ -399,6 +400,8 @@ async function mirrorAppointment(
         starts_at: startsAt.toISOString(),
         ends_at: new Date(startsAt.getTime() + minutes * 60_000).toISOString(),
         external_ref: ref == null ? null : String(ref),
+        source: "ia",
+        conversation_id: conversationId,
       })
       .throwOnError();
   }
@@ -441,12 +444,16 @@ async function mirrorAppointment(
   }
 }
 
-/** Consulta ou altera a agenda da clínica pelo modo configurado. Nunca lança erro: devolve { erro }. */
+/**
+ * Consulta ou altera a agenda da clínica pelo modo configurado. Nunca lança erro: devolve { erro }.
+ * `conversationId` liga o agendamento criado à conversa que o originou (indicadores).
+ */
 export async function callAgenda(
   integration: Integration,
   services: { name: string; duration_minutes: number }[],
   action: string,
   params: Record<string, unknown>,
+  conversationId: number | null = null,
 ): Promise<AgendaResult> {
   if (!(ACTIONS as readonly string[]).includes(action)) {
     return { erro: `Ação de agenda desconhecida: ${action}` };
@@ -490,6 +497,7 @@ export async function callAgenda(
       params,
       extra,
       result,
+      conversationId,
     );
   } catch (e) {
     // a resposta ao paciente não depende da cópia local

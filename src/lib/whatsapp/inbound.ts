@@ -51,6 +51,7 @@ export type WhatsappEvent = {
         event?: string; // field = "account_update"
         waba_info?: { waba_id?: string };
         metadata?: { phone_number_id?: string };
+        contacts?: { wa_id?: string; profile?: { name?: string } }[];
         messages?: InboundMessage[];
         statuses?: {
           id?: string;
@@ -106,7 +107,12 @@ export async function handleWhatsappEvent(body: WhatsappEvent) {
       const phoneNumberId = value.metadata?.phone_number_id;
       if (!value.messages?.length || !phoneNumberId) continue;
       try {
-        await handleMessages(admin, phoneNumberId, value.messages);
+        await handleMessages(
+          admin,
+          phoneNumberId,
+          value.messages,
+          profileNames(value.contacts),
+        );
       } catch (e) {
         console.error("[whatsapp] falha no webhook:", (e as Error).message);
       }
@@ -114,10 +120,24 @@ export async function handleWhatsappEvent(body: WhatsappEvent) {
   }
 }
 
+/** Nome do perfil de WhatsApp de cada remetente, quando a Meta manda junto com a mensagem. */
+function profileNames(
+  contacts: { wa_id?: string; profile?: { name?: string } }[] = [],
+) {
+  const names = new Map<string, string>();
+  for (const c of contacts) {
+    const phone = String(c.wa_id ?? "").replace(/\D/g, "");
+    const name = c.profile?.name?.trim();
+    if (phone && name) names.set(phone, name.slice(0, 120));
+  }
+  return names;
+}
+
 async function handleMessages(
   admin: Admin,
   phoneNumberId: string,
   messages: InboundMessage[],
+  names: Map<string, string>,
 ) {
   const { data: clinic } = await admin
     .from("clinics")
@@ -157,7 +177,7 @@ async function handleMessages(
 
   for (const msg of messages) {
     try {
-      await processMessage(admin, clinic, sender, sub.id, msg);
+      await processMessage(admin, clinic, sender, sub.id, msg, names);
     } catch (e) {
       console.error("[whatsapp] falha na mensagem:", (e as Error).message);
     }
@@ -205,7 +225,7 @@ async function findOrCreateConversation(
   const since = new Date(Date.now() - hours * 3600_000).toISOString();
   const { data: open } = await admin
     .from("conversations")
-    .select("id, attendance_state")
+    .select("id, attendance_state, contact_id")
     .eq("clinic_id", clinic.id)
     .eq("contact_phone", phone)
     .eq("status", "aberta")
@@ -219,7 +239,7 @@ async function findOrCreateConversation(
   const { data: created } = await admin
     .from("conversations")
     .insert({ clinic_id: clinic.id, contact_phone: phone })
-    .select("id, attendance_state")
+    .select("id, attendance_state, contact_id")
     .single()
     .throwOnError();
   return created;
@@ -272,6 +292,7 @@ async function processMessage(
   sender: Sender,
   subscriptionId: string,
   msg: InboundMessage,
+  names: Map<string, string>,
 ) {
   const from = String(msg.from ?? "").replace(/\D/g, "");
   if (!from) return;
@@ -287,6 +308,7 @@ async function processMessage(
   }
 
   const conversation = await findOrCreateConversation(admin, clinic, from);
+  await saveProfileName(admin, conversation.contact_id, names.get(from));
 
   // Guarda a mensagem com a hora em que o celular enviou (a Meta reentrega mensagens atrasadas).
   // O id da Meta é único: um reenvio da mesma mensagem para aqui.
@@ -327,7 +349,12 @@ async function processMessage(
       history,
       sentImageIds,
       agenda: integration?.enabled
-        ? { kind: "live", integration, contactPhone: from }
+        ? {
+            kind: "live",
+            integration,
+            contactPhone: from,
+            conversationId: conversation.id,
+          }
         : null,
     });
   } catch (e) {
@@ -376,6 +403,21 @@ async function processMessage(
   if (reply.needsHuman) {
     await escalateToStaff(admin, clinic, sender, conversation.id, from, body);
   }
+}
+
+/** Guarda o nome do perfil de WhatsApp no contato (só quando mudou). */
+async function saveProfileName(
+  admin: Admin,
+  contactId: string | null,
+  name: string | undefined,
+) {
+  if (!contactId || !name) return;
+  const { error } = await admin
+    .from("contacts")
+    .update({ whatsapp_name: name })
+    .eq("id", contactId)
+    .neq("whatsapp_name", name);
+  if (error) console.error("[whatsapp] nome do contato:", error.message);
 }
 
 /** As últimas mensagens da conversa, da mais antiga para a mais nova. */

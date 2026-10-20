@@ -40,7 +40,12 @@ export type ToolCall = {
  * Testar), null desliga as ferramentas.
  */
 export type AgendaMode =
-  | { kind: "live"; integration: Integration; contactPhone: string }
+  | {
+      kind: "live";
+      integration: Integration;
+      contactPhone: string;
+      conversationId: number;
+    }
   | { kind: "simulate" }
   | null;
 
@@ -238,7 +243,13 @@ export async function generateReply({
       }
       const result =
         agenda.kind === "live"
-          ? await callAgenda(agenda.integration, context.services, name, args)
+          ? await callAgenda(
+              agenda.integration,
+              context.services,
+              name,
+              args,
+              agenda.conversationId,
+            )
           : simulateAgenda(name, args);
       toolCalls.push({ name, args, result });
       responses.push({

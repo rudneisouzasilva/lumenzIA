@@ -82,10 +82,87 @@ export type Database = {
           },
         ];
       };
+      appointment_log: {
+        Row: {
+          appointment_id: number | null;
+          booked_at: string;
+          clinic_id: string;
+          contact_id: string | null;
+          conversation_id: number | null;
+          id: number;
+          procedure_name: string;
+          professional_name: string;
+          source: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["appointment_status"];
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          appointment_id?: number | null;
+          booked_at: string;
+          clinic_id: string;
+          contact_id?: string | null;
+          conversation_id?: number | null;
+          id?: never;
+          procedure_name?: string;
+          professional_name?: string;
+          source: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["appointment_status"];
+          updated_at?: string;
+        };
+        Update: {
+          appointment_id?: number | null;
+          booked_at?: string;
+          clinic_id?: string;
+          contact_id?: string | null;
+          conversation_id?: number | null;
+          id?: never;
+          procedure_name?: string;
+          professional_name?: string;
+          source?: string;
+          starts_at?: string;
+          status?: Database["public"]["Enums"]["appointment_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "appointment_log_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: true;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_log_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_log_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_log_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       appointments: {
         Row: {
           clinic_id: string;
+          contact_id: string | null;
           contact_phone: string;
+          conversation_id: number | null;
           created_at: string;
           ends_at: string;
           external_ref: string | null;
@@ -94,13 +171,16 @@ export type Database = {
           procedure_name: string;
           professional_name: string;
           reminder_sent_at: string | null;
+          source: string;
           starts_at: string;
           status: Database["public"]["Enums"]["appointment_status"];
         };
         ComputedFields: never;
         Insert: {
           clinic_id: string;
+          contact_id?: string | null;
           contact_phone: string;
+          conversation_id?: number | null;
           created_at?: string;
           ends_at: string;
           external_ref?: string | null;
@@ -109,12 +189,15 @@ export type Database = {
           procedure_name?: string;
           professional_name?: string;
           reminder_sent_at?: string | null;
+          source?: string;
           starts_at: string;
           status?: Database["public"]["Enums"]["appointment_status"];
         };
         Update: {
           clinic_id?: string;
+          contact_id?: string | null;
           contact_phone?: string;
+          conversation_id?: number | null;
           created_at?: string;
           ends_at?: string;
           external_ref?: string | null;
@@ -123,6 +206,7 @@ export type Database = {
           procedure_name?: string;
           professional_name?: string;
           reminder_sent_at?: string | null;
+          source?: string;
           starts_at?: string;
           status?: Database["public"]["Enums"]["appointment_status"];
         };
@@ -132,6 +216,20 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
             referencedColumns: ["id"];
           },
         ];
@@ -324,11 +422,60 @@ export type Database = {
           },
         ];
       };
+      contacts: {
+        Row: {
+          clinic_id: string;
+          created_at: string;
+          first_contact_at: string;
+          id: string;
+          last_contact_at: string;
+          name: string;
+          opted_out_at: string | null;
+          phone: string;
+          updated_at: string;
+          whatsapp_name: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          created_at?: string;
+          first_contact_at?: string;
+          id?: string;
+          last_contact_at?: string;
+          name?: string;
+          opted_out_at?: string | null;
+          phone: string;
+          updated_at?: string;
+          whatsapp_name?: string;
+        };
+        Update: {
+          clinic_id?: string;
+          created_at?: string;
+          first_contact_at?: string;
+          id?: string;
+          last_contact_at?: string;
+          name?: string;
+          opted_out_at?: string | null;
+          phone?: string;
+          updated_at?: string;
+          whatsapp_name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "contacts_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       conversations: {
         Row: {
           attendance_state: Database["public"]["Enums"]["attendance_state"];
           clinic_id: string;
           closed_at: string | null;
+          contact_id: string | null;
           contact_phone: string;
           contact_reason_id: string | null;
           id: number;
@@ -343,6 +490,7 @@ export type Database = {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
           clinic_id: string;
           closed_at?: string | null;
+          contact_id?: string | null;
           contact_phone: string;
           contact_reason_id?: string | null;
           id?: never;
@@ -356,6 +504,7 @@ export type Database = {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
           clinic_id?: string;
           closed_at?: string | null;
+          contact_id?: string | null;
           contact_phone?: string;
           contact_reason_id?: string | null;
           id?: never;
@@ -371,6 +520,13 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversations_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
             referencedColumns: ["id"];
           },
           {
@@ -844,6 +1000,8 @@ export type Database = {
         Args: { p_clinic_id: string };
         Returns: {
           attendance_state: Database["public"]["Enums"]["attendance_state"];
+          contact_id: string | null;
+          contact_name: string | null;
           contact_phone: string;
           id: number;
           last_message: string | null;
@@ -876,6 +1034,10 @@ export type Database = {
           procedure_name: string;
           starts_at: string;
         }[];
+      };
+      ensure_contact: {
+        Args: { p_clinic_id: string; p_name?: string; p_phone: string };
+        Returns: string;
       };
       gen_random_uuid: { Args: Record<PropertyKey, never>; Returns: string };
       gen_salt: { Args: { "": string }; Returns: string };

@@ -47,6 +47,7 @@ type ClosedRow = {
   status: Database["public"]["Enums"]["conversation_status"];
   summary: string | null;
   contact_reasons: { name: string } | null;
+  contacts: { name: string; whatsapp_name: string } | null;
 };
 type Message = {
   id: number;
@@ -209,7 +210,7 @@ export function Inbox({
     void client
       .from("conversations")
       .select(
-        "id, contact_phone, started_at, last_message_at, status, summary, contact_reasons(name)",
+        "id, contact_phone, started_at, last_message_at, status, summary, contact_reasons(name), contacts(name, whatsapp_name)",
       )
       .eq("clinic_id", clinicId)
       .neq("status", "aberta")
@@ -410,6 +411,14 @@ export function Inbox({
   );
 }
 
+/** Nome do contato (o digitado pela equipe vale mais que o do perfil) ou o telefone. */
+function contactLabel(
+  phone: string,
+  contact: { name: string; whatsapp_name: string } | null,
+) {
+  return contact?.name || contact?.whatsapp_name || formatPhone(phone);
+}
+
 function ListSkeleton() {
   return (
     <ul className="animate-pulse divide-y" aria-hidden>
@@ -507,7 +516,7 @@ function OpenList({
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-sm font-medium">
-                      {formatPhone(r.contact_phone)}
+                      {r.contact_name || formatPhone(r.contact_phone)}
                     </span>
                     <span className="shrink-0 text-[11px] text-muted-foreground">
                       {formatRelative(r.last_message_at)}
@@ -566,7 +575,7 @@ function ClosedList({
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-sm font-medium">
-                  {formatPhone(r.contact_phone)}
+                  {contactLabel(r.contact_phone, r.contacts)}
                 </span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
                   {formatRelative(r.last_message_at)}
@@ -640,6 +649,11 @@ function ConversationView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const phone = open?.contact_phone ?? closed?.contact_phone ?? "";
+  const name =
+    open?.contact_name ||
+    closed?.contacts?.name ||
+    closed?.contacts?.whatsapp_name ||
+    null;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -690,7 +704,12 @@ function ConversationView({
         <Avatar phone={phone || "··"} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">
-            {phone ? formatPhone(phone) : "Conversa"}
+            {name ?? (phone ? formatPhone(phone) : "Conversa")}
+            {name && phone && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {formatPhone(phone)}
+              </span>
+            )}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {open
