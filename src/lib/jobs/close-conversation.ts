@@ -37,18 +37,16 @@ async function otherReasonId(admin: Admin, clinicId: string) {
   return created.id;
 }
 
+type Values = Database["public"]["Tables"]["conversations"]["Update"];
+
 /**
- * Encerra uma conversa em andamento e classifica motivo, desfecho e resumo com a IA.
- *
- * Se a IA falhar, `fallback` decide: true encerra mesmo assim, sem motivo (quem clicou em
- * "Encerrar" no painel quer a conversa fechada); false deixa aberta para o próximo job tentar de
- * novo. Devolve false quando a conversa já tinha sido encerrada por outra pessoa ou job.
+ * Motivo, desfecho e resumo de uma conversa, pela IA. Sem nenhuma mensagem do paciente não há o
+ * que classificar: fica "abandonada", sem gastar a IA.
  */
-export async function closeConversation(
+async function classify(
   admin: Admin,
   conversation: { id: number; clinic_id: string },
-  { fallback }: { fallback: boolean },
-) {
+): Promise<Values> {
   const [{ data: messages }, { data: reasons }] = await Promise.all([
     admin
       .from("messages")
@@ -63,25 +61,37 @@ export async function closeConversation(
       .order("sort_order")
       .throwOnError(),
   ]);
+  if (!messages.some((m) => m.role === "user")) return { status: "abandonada" };
 
-  let values: Database["public"]["Tables"]["conversations"]["Update"];
-  if (!messages.length) {
-    values = { status: "abandonada" };
-  } else {
-    try {
-      const result = await classifyConversation({ reasons, messages });
-      const reasonId = result.reason
-        ? reasons.find((r) => r.name === result.reason)!.id
-        : await otherReasonId(admin, conversation.clinic_id);
-      values = {
-        status: result.status,
-        contact_reason_id: reasonId,
-        summary: result.summary || null,
-      };
-    } catch (e) {
-      if (!fallback || !(e instanceof AiError)) throw e;
-      values = { status: "concluida" };
-    }
+  const result = await classifyConversation({ reasons, messages });
+  const reasonId = result.reason
+    ? reasons.find((r) => r.name === result.reason)!.id
+    : await otherReasonId(admin, conversation.clinic_id);
+  return {
+    status: result.status,
+    contact_reason_id: reasonId,
+    summary: result.summary || null,
+  };
+}
+
+/**
+ * Encerra uma conversa em andamento e classifica motivo, desfecho e resumo com a IA.
+ *
+ * Se a IA falhar, `fallback` decide: true encerra mesmo assim, sem motivo (quem clicou em
+ * "Encerrar" no painel quer a conversa fechada); false deixa aberta para o próximo job tentar de
+ * novo. Devolve false quando a conversa já tinha sido encerrada por outra pessoa ou job.
+ */
+export async function closeConversation(
+  admin: Admin,
+  conversation: { id: number; clinic_id: string },
+  { fallback }: { fallback: boolean },
+) {
+  let values: Values;
+  try {
+    values = await classify(admin, conversation);
+  } catch (e) {
+    if (!fallback || !(e instanceof AiError)) throw e;
+    values = { status: "concluida" };
   }
 
   // Só fecha se ainda estiver aberta: o job e alguém no painel podem chegar juntos.
@@ -93,4 +103,25 @@ export async function closeConversation(
     .select("id")
     .throwOnError();
   return data.length > 0;
+}
+
+/**
+ * Classifica uma conversa importada do celular (já encerrada). Uma tentativa só: se a IA falhar,
+ * a conversa fica sem motivo, para não tentar a mesma para sempre.
+ */
+export async function classifyImported(
+  admin: Admin,
+  conversation: { id: number; clinic_id: string },
+) {
+  let values: Values = {};
+  try {
+    values = await classify(admin, conversation);
+  } catch (e) {
+    if (!(e instanceof AiError)) throw e;
+  }
+  await admin
+    .from("conversations")
+    .update({ ...values, needs_classification: false })
+    .eq("id", conversation.id)
+    .throwOnError();
 }

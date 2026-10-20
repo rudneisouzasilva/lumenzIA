@@ -322,8 +322,12 @@ export type Database = {
           template_language: string;
           tone: string;
           updated_at: string;
+          whatsapp_coexistence: boolean;
           whatsapp_connected_at: string | null;
           whatsapp_display_phone: string | null;
+          whatsapp_history_messages: number;
+          whatsapp_history_progress: number;
+          whatsapp_history_status: string;
           whatsapp_phone_number_id: string | null;
           whatsapp_verified_name: string | null;
           whatsapp_waba_id: string | null;
@@ -350,8 +354,12 @@ export type Database = {
           template_language?: string;
           tone?: string;
           updated_at?: string;
+          whatsapp_coexistence?: boolean;
           whatsapp_connected_at?: string | null;
           whatsapp_display_phone?: string | null;
+          whatsapp_history_messages?: number;
+          whatsapp_history_progress?: number;
+          whatsapp_history_status?: string;
           whatsapp_phone_number_id?: string | null;
           whatsapp_verified_name?: string | null;
           whatsapp_waba_id?: string | null;
@@ -377,8 +385,12 @@ export type Database = {
           template_language?: string;
           tone?: string;
           updated_at?: string;
+          whatsapp_coexistence?: boolean;
           whatsapp_connected_at?: string | null;
           whatsapp_display_phone?: string | null;
+          whatsapp_history_messages?: number;
+          whatsapp_history_progress?: number;
+          whatsapp_history_status?: string;
           whatsapp_phone_number_id?: string | null;
           whatsapp_verified_name?: string | null;
           whatsapp_waba_id?: string | null;
@@ -479,7 +491,9 @@ export type Database = {
           contact_phone: string;
           contact_reason_id: string | null;
           id: number;
+          imported: boolean;
           last_message_at: string;
+          needs_classification: boolean;
           needs_human_at: string | null;
           started_at: string;
           status: Database["public"]["Enums"]["conversation_status"];
@@ -494,7 +508,9 @@ export type Database = {
           contact_phone: string;
           contact_reason_id?: string | null;
           id?: never;
+          imported?: boolean;
           last_message_at?: string;
+          needs_classification?: boolean;
           needs_human_at?: string | null;
           started_at?: string;
           status?: Database["public"]["Enums"]["conversation_status"];
@@ -508,7 +524,9 @@ export type Database = {
           contact_phone?: string;
           contact_reason_id?: string | null;
           id?: never;
+          imported?: boolean;
           last_message_at?: string;
+          needs_classification?: boolean;
           needs_human_at?: string | null;
           started_at?: string;
           status?: Database["public"]["Enums"]["conversation_status"];
@@ -657,6 +675,7 @@ export type Database = {
           conversation_id: number;
           created_at: string;
           id: number;
+          origin: string;
           role: Database["public"]["Enums"]["message_role"];
           sent_by: string | null;
           sent_image_id: string | null;
@@ -670,6 +689,7 @@ export type Database = {
           conversation_id: number;
           created_at?: string;
           id?: never;
+          origin?: string;
           role: Database["public"]["Enums"]["message_role"];
           sent_by?: string | null;
           sent_image_id?: string | null;
@@ -682,6 +702,7 @@ export type Database = {
           conversation_id?: number;
           created_at?: string;
           id?: never;
+          origin?: string;
           role?: Database["public"]["Enums"]["message_role"];
           sent_by?: string | null;
           sent_image_id?: string | null;
@@ -951,6 +972,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      add_history_progress: {
+        Args: { p_clinic_id: string; p_messages: number; p_progress: number };
+        Returns: undefined;
+      };
       admin_clinic_members: {
         Args: { p_clinic_id: string };
         Returns: {
@@ -1065,6 +1090,10 @@ export type Database = {
       set_cron_app_url: { Args: { p_url: string }; Returns: undefined };
       shares_clinic_with: { Args: { p_user_id: string }; Returns: boolean };
       storage_clinic_id: { Args: { p_name: string }; Returns: string };
+      unclassified_conversations: {
+        Args: { p_limit: number };
+        Returns: { clinic_id: string; id: number }[];
+      };
     };
     Enums: {
       appointment_status: "agendado" | "concluido" | "cancelado";

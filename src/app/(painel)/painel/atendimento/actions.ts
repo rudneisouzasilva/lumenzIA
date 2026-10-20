@@ -152,6 +152,7 @@ export async function sendStaffReply(
       conversation_id: conversationId,
       contact_phone: conversation.contact_phone,
       role: "staff",
+      origin: "painel",
       content: message || "📷 Foto enviada",
       sent_by: ctx.user.id,
       sent_image_id: image?.id ?? null,

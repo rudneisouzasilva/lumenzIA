@@ -16,29 +16,43 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { sendImage, sendTemplate, sendText, type Sender } from "./client";
+import {
+  handleContactsSync,
+  handleHistory,
+  handleMessageEchoes,
+  type ContactSync,
+  type HistoryChunk,
+  type MessageEcho,
+} from "./coexistence";
+import {
+  clinicByPhoneNumberId,
+  findOrCreateConversation,
+  whatsappTime,
+  type InboundClinic,
+} from "./conversations";
 import { handlePartnerRemoved } from "./embedded-signup";
+import { messageText } from "./message-text";
 
-/** Tempo sem mensagens que encerra uma conversa, quando a clínica não escolheu outro. */
-export const DEFAULT_CONVERSATION_TIMEOUT_HOURS = 6;
+export { DEFAULT_CONVERSATION_TIMEOUT_HOURS } from "./conversations";
+
 const HISTORY_SIZE = 20;
 
 type Admin = SupabaseClient<Database>;
 
-type Clinic = {
-  id: string;
-  is_active: boolean;
-  conversation_timeout_hours: number | null;
-  staff_phone_number: string | null;
-  staff_alert_template_name: string | null;
-  template_language: string;
-};
-
-type InboundMessage = {
+export type InboundMessage = {
   id?: string;
   from?: string;
   timestamp?: string;
   type?: string;
   text?: { body?: string };
+  image?: { caption?: string };
+  video?: { caption?: string };
+  document?: { caption?: string; filename?: string };
+  button?: { text?: string };
+  interactive?: {
+    button_reply?: { title?: string };
+    list_reply?: { title?: string };
+  };
 };
 
 export type WhatsappEvent = {
@@ -48,9 +62,9 @@ export type WhatsappEvent = {
     changes?: {
       field?: string;
       value?: {
-        event?: string; // field = "account_update"
+        event?: string; // field = "account_update" ou "message_template_status_update"
         waba_info?: { waba_id?: string };
-        metadata?: { phone_number_id?: string };
+        metadata?: { phone_number_id?: string; display_phone_number?: string };
         contacts?: { wa_id?: string; profile?: { name?: string } }[];
         messages?: InboundMessage[];
         statuses?: {
@@ -59,16 +73,36 @@ export type WhatsappEvent = {
           recipient_id?: string;
           errors?: { code?: number; title?: string }[];
         }[];
+        // Coexistência com o app WhatsApp Business
+        history?: HistoryChunk[];
+        message_echoes?: MessageEcho[];
+        state_sync?: ContactSync[];
+        // Status dos templates (mensagens prontas)
+        message_template_id?: number | string;
+        message_template_name?: string;
+        message_template_language?: string;
+        reason?: string | null;
       };
     }[];
   }[];
 };
 
+export type TemplateStatusEvent = {
+  wabaId: string | undefined;
+  templateId: string;
+  status: string;
+  reason: string | null;
+};
+
 /**
- * Processa um aviso do webhook do WhatsApp: mensagens recebidas e falhas de entrega. Roda depois
- * de responder 200 à Meta, então cada falha é só registrada no log.
+ * Processa um aviso do webhook do WhatsApp: mensagens recebidas, falhas de entrega e, na
+ * coexistência, o histórico e as mensagens que a equipe manda pelo celular. Roda depois de
+ * responder 200 à Meta, então cada falha é só registrada no log.
  */
-export async function handleWhatsappEvent(body: WhatsappEvent) {
+export async function handleWhatsappEvent(
+  body: WhatsappEvent,
+  onTemplateStatus?: (event: TemplateStatusEvent) => Promise<void>,
+) {
   if (body?.object !== "whatsapp_business_account") return;
   const admin = createAdminClient();
 
@@ -76,20 +110,52 @@ export async function handleWhatsappEvent(body: WhatsappEvent) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
       if (!value) continue;
+      const phoneNumberId = value.metadata?.phone_number_id;
 
-      if (
-        change.field === "account_update" &&
-        value.event === "PARTNER_REMOVED"
-      ) {
-        const wabaId = value.waba_info?.waba_id ?? entry.id;
-        if (wabaId) {
-          await handlePartnerRemoved(wabaId).catch((e) =>
-            console.error(
-              "[whatsapp] parceiro removido:",
-              (e as Error).message,
-            ),
-          );
+      try {
+        if (change.field === "account_update") {
+          const wabaId = value.waba_info?.waba_id ?? entry.id;
+          if (value.event === "PARTNER_REMOVED" && wabaId) {
+            await handlePartnerRemoved(wabaId);
+          }
+          continue;
         }
+        if (change.field === "message_template_status_update") {
+          if (onTemplateStatus && value.message_template_id && value.event) {
+            await onTemplateStatus({
+              wabaId: entry.id,
+              templateId: String(value.message_template_id),
+              status: value.event,
+              reason: value.reason ?? null,
+            });
+          }
+          continue;
+        }
+        if (change.field === "history" && phoneNumberId) {
+          await handleHistory(admin, phoneNumberId, value.history ?? []);
+          continue;
+        }
+        if (change.field === "smb_message_echoes" && phoneNumberId) {
+          await handleMessageEchoes(
+            admin,
+            phoneNumberId,
+            value.message_echoes ?? [],
+          );
+          continue;
+        }
+        if (change.field === "smb_app_state_sync" && phoneNumberId) {
+          await handleContactsSync(
+            admin,
+            phoneNumberId,
+            value.state_sync ?? [],
+          );
+          continue;
+        }
+      } catch (e) {
+        console.error(
+          `[whatsapp] falha no aviso ${change.field}:`,
+          (e as Error).message,
+        );
         continue;
       }
 
@@ -104,7 +170,6 @@ export async function handleWhatsappEvent(body: WhatsappEvent) {
         }
       }
 
-      const phoneNumberId = value.metadata?.phone_number_id;
       if (!value.messages?.length || !phoneNumberId) continue;
       try {
         await handleMessages(
@@ -133,30 +198,29 @@ function profileNames(
   return names;
 }
 
-async function handleMessages(
-  admin: Admin,
-  phoneNumberId: string,
-  messages: InboundMessage[],
-  names: Map<string, string>,
-) {
-  const { data: clinic } = await admin
-    .from("clinics")
-    .select(
-      "id, is_active, conversation_timeout_hours, staff_phone_number, staff_alert_template_name, template_language",
-    )
-    .eq("whatsapp_phone_number_id", phoneNumberId)
-    .maybeSingle()
-    .throwOnError();
-  if (!clinic?.is_active) return; // número desconhecido ou assistente pausada
+/**
+ * Por que a IA não pode responder agora (null = pode). As mensagens são guardadas mesmo assim:
+ * o painel é o histórico real da clínica, inclusive quando a assistente está pausada.
+ */
+type AiGate =
+  | { ok: true; sender: Sender; subscriptionId: string }
+  | { ok: false; sender: Sender | null };
 
+async function aiGate(
+  admin: Admin,
+  clinic: InboundClinic,
+  phoneNumberId: string,
+): Promise<AiGate> {
   const { data: accessToken } = await admin
     .rpc("get_clinic_secret", {
       p_clinic_id: clinic.id,
       p_kind: "whatsapp_token",
     })
     .throwOnError();
-  if (!accessToken) return;
-  const sender: Sender = { phoneNumberId, accessToken };
+  const sender: Sender | null = accessToken
+    ? { phoneNumberId, accessToken }
+    : null;
+  if (!sender || !clinic.is_active) return { ok: false, sender };
 
   const { data: subs } = await admin
     .from("subscriptions")
@@ -166,18 +230,30 @@ async function handleMessages(
     .limit(10)
     .throwOnError();
   const sub = pickActiveSubscription(subs as SubscriptionRow[]);
-  if (!sub) return; // sem assinatura em dia, a assistente não responde
+  if (!sub) return { ok: false, sender }; // sem assinatura em dia, a assistente não responde
 
   if (sub.messages_used_this_period >= (sub.plans?.message_quota ?? 0)) {
     await notifyQuotaExceeded(admin, clinic, sender, sub.id).catch((e) =>
       console.error("[whatsapp] aviso de cota:", (e as Error).message),
     );
-    return; // cota do ciclo acabou: só volta a responder na renovação
+    return { ok: false, sender }; // cota do ciclo acabou: só volta a responder na renovação
   }
+  return { ok: true, sender, subscriptionId: sub.id };
+}
 
+async function handleMessages(
+  admin: Admin,
+  phoneNumberId: string,
+  messages: InboundMessage[],
+  names: Map<string, string>,
+) {
+  const clinic = await clinicByPhoneNumberId(admin, phoneNumberId);
+  if (!clinic) return; // número desconhecido
+
+  const gate = await aiGate(admin, clinic, phoneNumberId);
   for (const msg of messages) {
     try {
-      await processMessage(admin, clinic, sender, sub.id, msg, names);
+      await processMessage(admin, clinic, gate, msg, names);
     } catch (e) {
       console.error("[whatsapp] falha na mensagem:", (e as Error).message);
     }
@@ -187,7 +263,7 @@ async function handleMessages(
 /** Avisa a equipe uma vez por ciclo que a cota de mensagens acabou. */
 async function notifyQuotaExceeded(
   admin: Admin,
-  clinic: Clinic,
+  clinic: InboundClinic,
   sender: Sender,
   subscriptionId: string,
 ) {
@@ -214,44 +290,13 @@ async function notifyQuotaExceeded(
   }
 }
 
-/** A conversa aberta do contato, se ainda estiver dentro do tempo limite; senão, uma nova. */
-async function findOrCreateConversation(
-  admin: Admin,
-  clinic: Clinic,
-  phone: string,
-) {
-  const hours =
-    clinic.conversation_timeout_hours ?? DEFAULT_CONVERSATION_TIMEOUT_HOURS;
-  const since = new Date(Date.now() - hours * 3600_000).toISOString();
-  const { data: open } = await admin
-    .from("conversations")
-    .select("id, attendance_state, contact_id")
-    .eq("clinic_id", clinic.id)
-    .eq("contact_phone", phone)
-    .eq("status", "aberta")
-    .gt("last_message_at", since)
-    .order("last_message_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-    .throwOnError();
-  if (open) return open;
-
-  const { data: created } = await admin
-    .from("conversations")
-    .insert({ clinic_id: clinic.id, contact_phone: phone })
-    .select("id, attendance_state, contact_id")
-    .single()
-    .throwOnError();
-  return created;
-}
-
 /**
  * Põe a conversa na fila de atendimento humano e avisa a equipe por template. Vale tanto quando
  * a IA pede ([[ESCALAR]]) quanto quando ela falha: nos dois casos alguém precisa assumir.
  */
 async function escalateToStaff(
   admin: Admin,
-  clinic: Clinic,
+  clinic: InboundClinic,
   sender: Sender,
   conversationId: number,
   from: string,
@@ -288,34 +333,28 @@ async function escalateToStaff(
 
 async function processMessage(
   admin: Admin,
-  clinic: Clinic,
-  sender: Sender,
-  subscriptionId: string,
+  clinic: InboundClinic,
+  gate: AiGate,
   msg: InboundMessage,
   names: Map<string, string>,
 ) {
   const from = String(msg.from ?? "").replace(/\D/g, "");
   if (!from) return;
 
-  const body = msg.type === "text" ? msg.text?.body?.trim() : undefined;
-  if (!body) {
-    await sendText(
-      sender,
-      from,
-      "Por enquanto consigo responder apenas mensagens de texto. Pode escrever sua dúvida por aqui? 😊",
-    );
-    return;
-  }
+  const body = messageText(msg);
+  if (!body) return;
+  // Botões de um template também são texto para a IA.
+  const isText = ["text", "button", "interactive"].includes(msg.type ?? "");
 
-  const conversation = await findOrCreateConversation(admin, clinic, from);
+  const conversation = await findOrCreateConversation(
+    admin,
+    clinic,
+    from,
+    gate.ok ? "ia" : "equipe",
+  );
   await saveProfileName(admin, conversation.contact_id, names.get(from));
 
-  // Guarda a mensagem com a hora em que o celular enviou (a Meta reentrega mensagens atrasadas).
   // O id da Meta é único: um reenvio da mesma mensagem para aqui.
-  const sentAt =
-    Number(msg.timestamp) > 0
-      ? new Date(Number(msg.timestamp) * 1000).toISOString()
-      : undefined;
   const { error: insertError } = await admin.from("messages").insert({
     clinic_id: clinic.id,
     conversation_id: conversation.id,
@@ -323,7 +362,7 @@ async function processMessage(
     role: "user",
     content: body.slice(0, 2000),
     wa_message_id: msg.id ?? null,
-    created_at: sentAt,
+    created_at: whatsappTime(msg.timestamp),
   });
   if (insertError?.code === "23505") return;
   if (insertError) throw new Error(insertError.message);
@@ -333,8 +372,20 @@ async function processMessage(
     .eq("id", conversation.id)
     .throwOnError();
 
+  // Assistente pausada, sem assinatura ou sem cota: a mensagem fica no painel para a equipe.
+  if (!gate.ok) return;
   // Alguém da equipe assumiu a conversa: a IA fica quieta até devolverem para ela.
   if (conversation.attendance_state === "equipe") return;
+
+  const { sender, subscriptionId } = gate;
+  if (!isText) {
+    await sendText(
+      sender,
+      from,
+      "Por enquanto consigo responder apenas mensagens de texto. Pode escrever sua dúvida por aqui? 😊",
+    );
+    return;
+  }
 
   let reply;
   try {

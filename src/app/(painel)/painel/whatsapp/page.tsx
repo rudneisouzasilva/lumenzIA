@@ -5,7 +5,10 @@ import { Smartphone } from "lucide-react";
 import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
 import { WhatsappConnect } from "@/components/painel/whatsapp-connect";
 import { getPanelContext } from "@/lib/painel/context";
-import { embeddedSignupConfig } from "@/lib/whatsapp/embedded-signup";
+import {
+  embeddedSignupConfig,
+  historyRetryAllowed,
+} from "@/lib/whatsapp/embedded-signup";
 
 export const metadata: Metadata = { title: "WhatsApp" };
 
@@ -29,7 +32,7 @@ async function Connection() {
   const { data, error } = await supabase
     .from("clinics")
     .select(
-      "whatsapp_phone_number_id, whatsapp_display_phone, whatsapp_verified_name, whatsapp_connected_at",
+      "whatsapp_phone_number_id, whatsapp_display_phone, whatsapp_verified_name, whatsapp_connected_at, whatsapp_coexistence, whatsapp_history_status, whatsapp_history_progress, whatsapp_history_messages",
     )
     .eq("id", clinic.id)
     .single();
@@ -55,6 +58,16 @@ async function Connection() {
                 displayPhone: data.whatsapp_display_phone,
                 verifiedName: data.whatsapp_verified_name,
                 connectedAt: data.whatsapp_connected_at,
+                coexistence: data.whatsapp_coexistence,
+                history: {
+                  status: data.whatsapp_history_status,
+                  progress: data.whatsapp_history_progress,
+                  messages: data.whatsapp_history_messages,
+                  canRetry: historyRetryAllowed(
+                    data.whatsapp_history_status,
+                    data.whatsapp_connected_at,
+                  ),
+                },
               }
             : null
         }

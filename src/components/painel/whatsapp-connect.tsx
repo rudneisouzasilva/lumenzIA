@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import {
   connectWhatsappAction,
   disconnectWhatsappAction,
+  retryHistorySyncAction,
 } from "@/app/(painel)/painel/whatsapp/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +42,13 @@ export type WhatsappConnection = {
   displayPhone: string | null;
   verifiedName: string | null;
   connectedAt: string | null;
+  coexistence: boolean;
+  history: {
+    status: string;
+    progress: number;
+    messages: number;
+    canRetry: boolean;
+  };
 };
 
 type Session = {
@@ -196,7 +204,8 @@ export function WhatsappConnect({
       else toast.success("WhatsApp conectado! Agora é só ligar a assistente.");
     });
 
-  const connect = () => {
+  /** `existingApp`: o número continua no app WhatsApp Business do celular (coexistência). */
+  const connect = (existingApp: boolean) => {
     if (!config || !window.FB) return;
     session.current = null;
     setOpening(true);
@@ -210,7 +219,11 @@ export function WhatsappConnect({
         config_id: config.configId,
         response_type: "code",
         override_default_response_type: true,
-        extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+        extras: {
+          setup: {},
+          featureType: existingApp ? "whatsapp_business_app_onboarding" : "",
+          sessionInfoVersion: "3",
+        },
       },
     );
   };
@@ -247,6 +260,10 @@ export function WhatsappConnect({
             </p>
           </div>
         </motion.div>
+
+        {connection.coexistence && (
+          <HistoryStatus history={connection.history} isOwner={isOwner} />
+        )}
 
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
@@ -336,19 +353,44 @@ export function WhatsappConnect({
         </p>
       ) : null}
 
-      <Button
-        size="lg"
-        onClick={connect}
-        disabled={!config || !isOwner || !ready || opening || pending}
-        className="w-full bg-[#25D366] text-white hover:bg-[#1ebe5b] sm:w-auto"
-      >
-        {pending || opening || (config && !ready) ? (
-          <Loader2 className="animate-spin" />
-        ) : (
-          <PlugZap />
-        )}
-        {pending ? "Conectando…" : "Conectar WhatsApp"}
-      </Button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[
+          {
+            existingApp: true,
+            title: "Já uso o WhatsApp Business no celular",
+            text: "O número continua no app. As conversas dos últimos 6 meses e o que a equipe responder pelo celular aparecem aqui.",
+          },
+          {
+            existingApp: false,
+            title: "Usar um número novo",
+            text: "Um número que ainda não está em nenhum app do WhatsApp, só para a assistente e o painel.",
+          },
+        ].map((option) => (
+          <button
+            key={option.title}
+            type="button"
+            onClick={() => connect(option.existingApp)}
+            disabled={!config || !isOwner || !ready || opening || pending}
+            className="group flex flex-col gap-2 rounded-2xl border p-4 text-left transition-colors hover:border-[#25D366]/60 hover:bg-[#25D366]/5 disabled:pointer-events-none disabled:opacity-60"
+          >
+            <span className="flex items-center gap-2 font-medium">
+              {pending || opening || (config && !ready) ? (
+                <Loader2 className="size-4 animate-spin text-[#25D366]" />
+              ) : (
+                <PlugZap className="size-4 text-[#25D366]" />
+              )}
+              {option.title}
+            </span>
+            <span className="text-sm text-muted-foreground">{option.text}</span>
+          </button>
+        ))}
+      </div>
+      {pending && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          Conectando…
+        </p>
+      )}
 
       <p className="flex items-start gap-2 text-xs text-muted-foreground">
         <Smartphone className="mt-0.5 size-3.5 shrink-0" />
@@ -356,6 +398,75 @@ export function WhatsappConnect({
         LumenzIA nunca vê a senha do Facebook, e o acesso pode ser removido a
         qualquer momento nas configurações da empresa no Facebook.
       </p>
+    </div>
+  );
+}
+
+const HISTORY_LABEL: Record<string, string> = {
+  aguardando: "Esperando a Meta enviar o histórico do celular…",
+  importando: "Importando as conversas do celular…",
+  concluido: "Histórico do celular importado.",
+  recusado:
+    "O compartilhamento do histórico foi recusado no celular. As conversas novas aparecem normalmente.",
+  erro: "Não foi possível pedir o histórico do celular.",
+};
+
+/** Andamento da importação das conversas antigas do app (coexistência). */
+function HistoryStatus({
+  history,
+  isOwner,
+}: {
+  history: WhatsappConnection["history"];
+  isOwner: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  const label = HISTORY_LABEL[history.status];
+  if (!label) return null;
+  const running =
+    history.status === "aguardando" || history.status === "importando";
+
+  const retry = () =>
+    startTransition(async () => {
+      const result = await retryHistorySyncAction();
+      if (!result.ok) toast.error(result.error);
+      else
+        toast.success("Pedido enviado. O histórico chega em alguns minutos.");
+    });
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-4 text-sm">
+      <p className="flex items-center gap-2 font-medium">
+        {running ? (
+          <Loader2 className="size-4 animate-spin text-primary" />
+        ) : (
+          <Smartphone className="size-4 text-primary" />
+        )}
+        {label}
+      </p>
+      {history.status === "importando" && (
+        <div className="h-2 rounded-full bg-muted">
+          <div
+            className="h-2 rounded-full bg-primary transition-[width]"
+            style={{ width: `${Math.max(4, history.progress)}%` }}
+          />
+        </div>
+      )}
+      {history.messages > 0 && (
+        <p className="text-muted-foreground">
+          {history.messages.toLocaleString("pt-BR")} mensagens importadas. Elas
+          ficam em Conversas, na aba Encerradas.
+        </p>
+      )}
+      <p className="text-muted-foreground">
+        O que a equipe responder pelo celular aparece no painel na hora, e a
+        assistente deixa aquela conversa com vocês.
+      </p>
+      {history.canRetry && isOwner && (
+        <Button size="sm" variant="outline" disabled={pending} onClick={retry}>
+          {pending && <Loader2 className="animate-spin" />}
+          Pedir o histórico de novo
+        </Button>
+      )}
     </div>
   );
 }

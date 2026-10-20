@@ -46,12 +46,14 @@ type ClosedRow = {
   last_message_at: string;
   status: Database["public"]["Enums"]["conversation_status"];
   summary: string | null;
+  imported: boolean;
   contact_reasons: { name: string } | null;
   contacts: { name: string; whatsapp_name: string } | null;
 };
 type Message = {
   id: number;
   role: Database["public"]["Enums"]["message_role"];
+  origin: string;
   content: string;
   created_at: string;
   profiles: { full_name: string } | null;
@@ -210,7 +212,7 @@ export function Inbox({
     void client
       .from("conversations")
       .select(
-        "id, contact_phone, started_at, last_message_at, status, summary, contact_reasons(name), contacts(name, whatsapp_name)",
+        "id, contact_phone, started_at, last_message_at, status, summary, imported, contact_reasons(name), contacts(name, whatsapp_name)",
       )
       .eq("clinic_id", clinicId)
       .neq("status", "aberta")
@@ -231,7 +233,7 @@ export function Inbox({
     void client
       .from("messages")
       .select(
-        "id, role, content, created_at, profiles(full_name), images(storage_path, description)",
+        "id, role, origin, content, created_at, profiles(full_name), images(storage_path, description)",
       )
       .eq("conversation_id", selectedId)
       .order("id")
@@ -595,6 +597,11 @@ function ClosedList({
                     {r.contact_reasons.name}
                   </span>
                 )}
+                {r.imported && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                    Importada do celular
+                  </span>
+                )}
               </span>
             </span>
           </button>
@@ -874,8 +881,10 @@ function Bubble({ message: m }: { message: Message }) {
             <Headset className="size-3" />
           )}
           {m.role === "model"
-            ? "Assistente"
-            : m.profiles?.full_name || "Equipe"}
+            ? m.origin === "retomada"
+              ? "Assistente · retomada automática"
+              : "Assistente"
+            : staffLabel(m)}
         </p>
       )}
       <p className="break-words whitespace-pre-wrap">{m.content}</p>
@@ -892,6 +901,15 @@ function Bubble({ message: m }: { message: Message }) {
       </span>
     </div>
   );
+}
+
+/** Quem da clínica escreveu e por onde. */
+function staffLabel(m: Message) {
+  const who = m.profiles?.full_name || "Equipe";
+  if (m.origin === "celular") return "Equipe · pelo celular";
+  if (m.origin === "historico") return "Clínica · histórico do celular";
+  if (m.origin === "template") return `${who} · mensagem pronta`;
+  return who;
 }
 
 function Composer({
