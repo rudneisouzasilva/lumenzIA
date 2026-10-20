@@ -14,11 +14,13 @@ export type AssistantContext = {
     work_hours_end: string | null;
     works_on_holidays: boolean;
     extra_closed_dates: string;
+    require_evaluation: boolean;
+    evaluation_validity_days: number | null;
   };
   faqs: { question: string; answer: string }[];
   questions: { question: string }[];
   images: { id: string; storage_path: string; description: string }[];
-  services: { name: string; duration_minutes: number }[];
+  services: { name: string; duration_minutes: number; kind: string }[];
   professionals: { name: string }[];
 };
 
@@ -58,6 +60,13 @@ function nowInBrasilia(now: Date) {
 }
 
 const hhmm = (time: string) => time.slice(0, 5);
+
+/** Como cada tipo de procedimento aparece na lista que a IA recebe. */
+function serviceTag(kind: string, requireEvaluation: boolean) {
+  if (kind === "avaliacao") return " (avaliação)";
+  if (requireEvaluation && kind === "procedimento") return " (exige avaliação)";
+  return "";
+}
 
 /**
  * Dias e horários da EQUIPE (a assistente responde a qualquer hora) e feriados, para a IA saber
@@ -155,6 +164,17 @@ export function buildSystemPrompt(
       '- Ao criar um agendamento, use no campo "procedimento" exatamente o nome de um dos procedimentos cadastrados abaixo, quando houver um que combine com o que a pessoa quer. A duração é calculada automaticamente a partir dele.',
       '- Se a pessoa pedir para mudar, remarcar ou cancelar um agendamento, SEMPRE chame primeiro "consultar_agendamentos" para achar o agendamento existente dela. Nunca peça para a pessoa lembrar de cor o id ou a data exata. Confirme com ela qual dos agendamentos encontrados é o correto antes de cancelar ou criar um novo.',
     );
+    if (
+      clinic.require_evaluation &&
+      services.some((s) => s.kind === "procedimento")
+    ) {
+      const validity = clinic.evaluation_validity_days
+        ? ` e só vale por ${clinic.evaluation_validity_days} dias depois dela (o procedimento precisa acontecer dentro desse prazo)`
+        : "";
+      rules.push(
+        `- Esta clínica faz uma AVALIAÇÃO antes dos procedimentos marcados como "exige avaliação" na lista abaixo. Eles só podem ser agendados para quem já fez a avaliação${validity}. Quem ainda não fez, ou está fora do prazo, deve primeiro agendar a avaliação: explique isso com gentileza e ofereça os horários da avaliação. A agenda confere isso sozinha; se uma ferramenta responder com motivo "avaliacao_necessaria", siga a orientação do erro, sem insistir no procedimento.`,
+      );
+    }
     if (professionals.length > 1) {
       rules.push(
         '- Esta clínica tem mais de um profissional (lista abaixo). Antes de consultar disponibilidade ou criar um agendamento, pergunte com qual profissional a pessoa quer ser atendida (a menos que ela já tenha dito). Use EXATAMENTE o nome cadastrado no campo "profissional" das ferramentas de agenda; nunca invente ou abrevie um nome.',
@@ -188,7 +208,10 @@ export function buildSystemPrompt(
     parts.push(
       "PROCEDIMENTOS E DURAÇÃO (use estes nomes exatos ao agendar):\n" +
         services
-          .map((s) => `- ${s.name}: ${s.duration_minutes} minutos`)
+          .map(
+            (s) =>
+              `- ${s.name}: ${s.duration_minutes} minutos${serviceTag(s.kind, clinic.require_evaluation)}`,
+          )
           .join("\n"),
     );
   }

@@ -369,6 +369,7 @@ export type Database = {
           business_info: string;
           conversation_timeout_hours: number | null;
           created_at: string;
+          evaluation_validity_days: number | null;
           extra_closed_dates: string;
           followup_abandoned_days: number | null;
           followup_concluded_days: number | null;
@@ -378,6 +379,7 @@ export type Database = {
           name: string;
           past_conversations: string;
           reminder_template_name: string | null;
+          require_evaluation: boolean;
           staff_alert_template_name: string | null;
           staff_phone_number: string | null;
           template_language: string;
@@ -404,6 +406,7 @@ export type Database = {
           business_info?: string;
           conversation_timeout_hours?: number | null;
           created_at?: string;
+          evaluation_validity_days?: number | null;
           extra_closed_dates?: string;
           followup_abandoned_days?: number | null;
           followup_concluded_days?: number | null;
@@ -413,6 +416,7 @@ export type Database = {
           name: string;
           past_conversations?: string;
           reminder_template_name?: string | null;
+          require_evaluation?: boolean;
           staff_alert_template_name?: string | null;
           staff_phone_number?: string | null;
           template_language?: string;
@@ -438,6 +442,7 @@ export type Database = {
           business_info?: string;
           conversation_timeout_hours?: number | null;
           created_at?: string;
+          evaluation_validity_days?: number | null;
           extra_closed_dates?: string;
           followup_abandoned_days?: number | null;
           followup_concluded_days?: number | null;
@@ -447,6 +452,7 @@ export type Database = {
           name?: string;
           past_conversations?: string;
           reminder_template_name?: string | null;
+          require_evaluation?: boolean;
           staff_alert_template_name?: string | null;
           staff_phone_number?: string | null;
           template_language?: string;
@@ -1392,6 +1398,7 @@ export type Database = {
           clinic_id: string;
           duration_minutes: number;
           id: string;
+          kind: string;
           name: string;
           sort_order: number;
         };
@@ -1400,6 +1407,7 @@ export type Database = {
           clinic_id: string;
           duration_minutes?: number;
           id?: string;
+          kind?: string;
           name: string;
           sort_order?: number;
         };
@@ -1407,6 +1415,7 @@ export type Database = {
           clinic_id?: string;
           duration_minutes?: number;
           id?: string;
+          kind?: string;
           name?: string;
           sort_order?: number;
         };

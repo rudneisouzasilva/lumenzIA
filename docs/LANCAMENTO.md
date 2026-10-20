@@ -19,6 +19,7 @@ senha e endereço dos jobs) a cada visita.
   5. `20261020000013_pipeline.sql` (funil; cria o funil padrão de cada clínica)
   6. `20261020000014_insights.sql` (indicadores e análise da IA)
   7. `20261020000015_google_calendar.sql` (Google Agenda)
+  8. `20261020000016_evaluation_required.sql` (avaliação obrigatória antes de procedimentos)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):

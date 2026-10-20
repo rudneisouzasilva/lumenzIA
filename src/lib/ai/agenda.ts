@@ -67,6 +67,11 @@ export const AGENDA_TOOLS = [
           description:
             "Nome exato de um dos profissionais cadastrados, quando a clínica tiver mais de um. Omita se houver só um profissional ou nenhum cadastrado.",
         },
+        telefone: {
+          type: "string",
+          description:
+            "Só quando o atendimento for para OUTRA pessoa: o telefone dela. Omita para a própria pessoa.",
+        },
         data_inicio: {
           type: "string",
           description: "Data inicial da busca, formato AAAA-MM-DD.",

@@ -28,25 +28,31 @@ import {
 } from "@/app/(painel)/painel/actions";
 import { Field } from "@/components/auth/field";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { zodResolver } from "@/lib/auth/zod-resolver";
 import {
   LIST_LIMITS,
   listSchemas,
+  SERVICE_KIND_LABELS,
+  SERVICE_KINDS,
   type ListItem,
   type ListKind,
+  type ServiceKind,
 } from "@/lib/painel/validation";
 import { cn } from "@/lib/utils";
 
 import { TextareaField } from "./form-parts";
+import { selectClassName } from "./template-send-dialog";
 
 type Values = Record<string, string | number>;
 
 type FieldDef = {
   name: string;
   label: string;
-  type: "text" | "textarea" | "number";
+  type: "text" | "textarea" | "number" | "select";
   placeholder?: string;
   maxLength?: number;
+  options?: { value: string; label: string }[];
 };
 
 type ListConfig = {
@@ -157,15 +163,30 @@ const LIST_CONFIG: Record<ListKind, ListConfig> = {
         type: "number",
         placeholder: "60",
       },
+      {
+        name: "kind",
+        label: "Tipo",
+        type: "select",
+        options: SERVICE_KINDS.map((k) => ({
+          value: k,
+          label: SERVICE_KIND_LABELS[k],
+        })),
+      },
     ],
-    defaults: { name: "", duration_minutes: 60 },
+    defaults: { name: "", duration_minutes: 60, kind: "procedimento" },
     empty:
       "Os procedimentos que a assistente pode agendar. A duração define quanto tempo ela reserva na agenda.",
     title: (i) => String(i.name),
-    subtitle: (i) => formatDuration(Number(i.duration_minutes)),
+    subtitle: (i) =>
+      [
+        formatDuration(Number(i.duration_minutes)),
+        i.kind !== "procedimento" && SERVICE_KIND_LABELS[i.kind as ServiceKind],
+      ]
+        .filter(Boolean)
+        .join(" · "),
     suggestions: [
-      { name: "Avaliação", duration_minutes: 30 },
-      { name: "Limpeza de pele", duration_minutes: 90 },
+      { name: "Avaliação", duration_minutes: 30, kind: "avaliacao" },
+      { name: "Limpeza de pele", duration_minutes: 90, kind: "livre" },
       { name: "Botox", duration_minutes: 45 },
       { name: "Preenchimento labial", duration_minutes: 60 },
     ],
@@ -564,7 +585,22 @@ function ItemForm({
         )}
       >
         {config.fields.map((f, i) =>
-          f.type === "textarea" ? (
+          f.type === "select" ? (
+            <div key={f.name} className="grid gap-2 sm:col-span-2">
+              <Label htmlFor={`list-${f.name}`}>{f.label}</Label>
+              <select
+                id={`list-${f.name}`}
+                className={selectClassName}
+                {...form.register(f.name)}
+              >
+                {f.options?.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : f.type === "textarea" ? (
             <TextareaField
               key={f.name}
               label={f.label}
