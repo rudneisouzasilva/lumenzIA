@@ -11,6 +11,7 @@ import {
 } from "@google/genai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
 import {
@@ -25,6 +26,7 @@ import {
   FOLLOW_UP_TOOL,
   type FollowUpMode,
 } from "./follow-up";
+import { checkEvaluation } from "./evaluation";
 import { buildSystemPrompt, parseReply, type AssistantContext } from "./prompt";
 
 const DEFAULT_MODEL = "gemini-3.8-flash";
@@ -74,7 +76,7 @@ export async function loadAssistantContext(
     supabase
       .from("clinics")
       .select(
-        "name, assistant_name, tone, business_info, past_conversations, behavior_rules, work_days, work_hours_start, work_hours_end, works_on_holidays, extra_closed_dates",
+        "name, assistant_name, tone, business_info, past_conversations, behavior_rules, work_days, work_hours_start, work_hours_end, works_on_holidays, extra_closed_dates, require_evaluation, evaluation_validity_days",
       )
       .eq("id", clinicId)
       .single()
@@ -102,7 +104,7 @@ export async function loadAssistantContext(
       .throwOnError(),
     supabase
       .from("services")
-      .select("name, duration_minutes")
+      .select("name, duration_minutes, kind")
       .eq("clinic_id", clinicId)
       .order("sort_order")
       .order("id")
@@ -202,6 +204,34 @@ async function generate(
 }
 
 /**
+ * Com a avaliação obrigatória, barra a consulta de horários e o agendamento de um procedimento
+ * para quem ainda não tem avaliação válida, antes de chegar à agenda da clínica.
+ */
+async function evaluationBlock(
+  clinicId: string,
+  context: AssistantContext,
+  action: string,
+  args: Record<string, unknown>,
+): Promise<AgendaResult | null> {
+  if (action !== "criar_agendamento" && action !== "consultar_disponibilidade")
+    return null;
+  try {
+    return await checkEvaluation(
+      createAdminClient(),
+      clinicId,
+      context.clinic,
+      context.services,
+      args,
+    );
+  } catch (e) {
+    console.error("[avaliação] conferência:", (e as Error).message);
+    return {
+      erro: "Não foi possível confirmar a avaliação desta pessoa agora. Peça para aguardar que a equipe confirma.",
+    };
+  }
+}
+
+/**
  * Gera a resposta da assistente. `history` termina com a mensagem do paciente. Resolve as
  * chamadas de ferramenta (agenda e retorno combinado, até 4 rodadas) antes do texto final.
  * `previousSummaries` são os resumos das últimas conversas com a mesma pessoa.
@@ -273,13 +303,20 @@ export async function generateReply({
         ) {
           args.telefone = agenda.contactPhone;
         }
-        result = await callAgenda(
-          agenda.integration,
-          context.services,
-          name,
-          args,
-          agenda.conversationId,
-        );
+        result =
+          (await evaluationBlock(
+            agenda.integration.clinic_id,
+            context,
+            name,
+            args,
+          )) ??
+          (await callAgenda(
+            agenda.integration,
+            context.services,
+            name,
+            args,
+            agenda.conversationId,
+          ));
       } else {
         result = simulateAgenda(name, args);
       }

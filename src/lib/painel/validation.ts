@@ -117,6 +117,21 @@ export const clinicNameSchema = z.object({
     .max(120, "Nome muito longo."),
 });
 
+/**
+ * Tipo de cada item de "Procedimentos": a avaliação, um procedimento que exige avaliação (quando a
+ * clínica liga a exigência) ou um procedimento livre, que nunca exige.
+ */
+export const SERVICE_KINDS = ["avaliacao", "procedimento", "livre"] as const;
+export type ServiceKind = (typeof SERVICE_KINDS)[number];
+
+export const SERVICE_KIND_LABELS: Record<ServiceKind, string> = {
+  avaliacao: "Avaliação",
+  procedimento: "Procedimento",
+  livre: "Livre (nunca exige avaliação)",
+};
+
+export const MAX_EVALUATION_VALIDITY_DAYS = 365;
+
 /** Listas que a clínica monta e reordena (o nome é o da tabela no banco). */
 export const listSchemas = {
   faqs: z.object({
@@ -137,6 +152,7 @@ export const listSchemas = {
       .int("Use minutos inteiros.")
       .min(5, "A duração mínima é de 5 minutos.")
       .max(720, "A duração máxima é de 12 horas."),
+    kind: z.enum(SERVICE_KINDS, "Escolha o tipo."),
   }),
   professionals: z.object({
     name: required("o nome", 120),
@@ -162,7 +178,7 @@ export const LIST_COLUMNS: Record<ListKind, string> = {
   faqs: "id, question, answer",
   ai_questions: "id, question",
   contact_reasons: "id, name, description",
-  services: "id, name, duration_minutes",
+  services: "id, name, duration_minutes, kind",
   professionals: "id, name",
 };
 
