@@ -384,7 +384,10 @@ export async function sendTemplateMessage(
   template: { name: string; language: string; body: string },
   params: string[],
 ) {
-  const clean = params.map(cleanParam);
+  // Manda só as variáveis que o texto usa: a Meta recusa variável a mais.
+  const clean = (
+    template.body ? params.slice(0, placeholderCount(template.body)) : params
+  ).map(cleanParam);
   await sendTemplate(sender, to, template.name, template.language, clean);
   return template.body ? renderTemplate(template.body, clean) : "";
 }

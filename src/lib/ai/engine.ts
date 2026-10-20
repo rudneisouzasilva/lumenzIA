@@ -265,7 +265,14 @@ export async function generateReply({
       } else if (!agenda) {
         result = { erro: "A agenda não está conectada nesta clínica." };
       } else if (agenda.kind === "live") {
-        if (!args.telefone) args.telefone = agenda.contactPhone;
+        // Consultar e cancelar valem só para o próprio contato, seja qual for o número pedido.
+        if (
+          !args.telefone ||
+          name === "consultar_agendamentos" ||
+          name === "cancelar_agendamento"
+        ) {
+          args.telefone = agenda.contactPhone;
+        }
         result = await callAgenda(
           agenda.integration,
           context.services,

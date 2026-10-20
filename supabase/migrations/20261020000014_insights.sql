@@ -215,7 +215,7 @@ set search_path = ''
 as $$
   with months as (
     select date_trunc('month', d)::date as month
-      from generate_series(p_from, p_to, interval '1 month') d
+      from generate_series(date_trunc('month', p_from), p_to, interval '1 month') d
   ),
   conv as (
     select v.*, date_trunc('month', v.started_at at time zone 'America/Sao_Paulo')::date as month,

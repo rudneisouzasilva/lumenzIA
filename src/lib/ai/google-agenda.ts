@@ -148,18 +148,21 @@ function toItem(target: Target, ev: GoogleEvent) {
   };
 }
 
-/** O evento é deste telefone? (o mesmo número, com ou sem o 55 e o nono dígito) */
+/** O evento é deste telefone? (o mesmo DDD e número, com ou sem o 55 e o nono dígito) */
 function samePhone(a: string, b: string) {
+  const key = (s: string) => {
+    const local = s.length >= 12 && s.startsWith("55") ? s.slice(2) : s;
+    return local.length >= 10 ? local.slice(0, 2) + local.slice(-8) : local;
+  };
   if (!a || !b) return false;
-  const tail = (s: string) => s.slice(-8);
-  return tail(a) === tail(b);
+  return key(a) === key(b);
 }
 
 async function listEvents(
   target: Target,
   from: Date,
   to: Date,
-  query?: string,
+  query?: Record<string, string>,
 ) {
   const res = await calendarApi<{ items?: GoogleEvent[] }>(
     target.accountId,
@@ -171,7 +174,7 @@ async function listEvents(
         singleEvents: "true",
         orderBy: "startTime",
         maxResults: "250",
-        ...(query ? { q: query } : {}),
+        ...query,
       },
     },
   );
@@ -386,12 +389,21 @@ async function find(
   const until = new Date(now.getTime() + LOOKAHEAD_DAYS * 86_400_000);
   const found: ReturnType<typeof toItem>[] = [];
   for (const target of chosen) {
-    // A busca do Google procura no texto: os últimos 8 dígitos acham o número com ou sem 55/9.
-    const events = await listEvents(target, now, until, phone.slice(-8));
-    for (const ev of events) {
+    // Os eventos criados pela assistente guardam o telefone; os criados à mão, só no texto.
+    const [tagged, typed] = await Promise.all([
+      listEvents(target, now, until, {
+        privateExtendedProperty: `telefone=${phone}`,
+      }),
+      listEvents(target, now, until, { q: phone }),
+    ]);
+    const seen = new Set<string>();
+    for (const ev of [...tagged, ...typed]) {
+      if (seen.has(ev.id)) continue;
+      seen.add(ev.id);
       const item = toItem(target, ev);
       if (samePhone(item.telefone, phone)) found.push(item);
     }
+    found.sort((a, b) => (a.data_hora ?? "").localeCompare(b.data_hora ?? ""));
   }
   return found;
 }

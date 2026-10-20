@@ -38,6 +38,7 @@ create table public.follow_ups (
   cancel_reason        text, -- contato_voltou | agendou | descadastro | equipe
   failures             smallint not null default 0,
   last_error           text,
+  checked_at           timestamptz, -- última vez que o envio esperou (fora do horário, sem template...)
   created_by           uuid references public.profiles (id) on delete set null,
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now()
@@ -46,6 +47,7 @@ create table public.follow_ups (
 -- No máximo uma retomada pendente por contato.
 create unique index follow_ups_one_pending_idx on public.follow_ups (contact_id) where status = 'pendente';
 create index follow_ups_due_idx on public.follow_ups (due_at) where status = 'pendente';
+create index follow_ups_checked_idx on public.follow_ups (checked_at nulls first, due_at) where status = 'pendente';
 create index follow_ups_clinic_idx on public.follow_ups (clinic_id, created_at desc);
 create index follow_ups_contact_sent_idx on public.follow_ups (contact_id, sent_at desc) where status = 'enviado';
 
@@ -167,7 +169,8 @@ as $$
    where f.status = 'pendente'
      and f.due_at <= now()
      and cl.is_active
-   order by f.due_at
+   -- As que acabaram de esperar vão para o fim da fila: uma clínica parada não trava as outras.
+   order by f.checked_at nulls first, f.due_at
    limit p_limit;
 $$;
 

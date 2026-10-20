@@ -206,6 +206,20 @@ export async function revokeAccount(accountId: string) {
   });
   tokens.delete(accountId);
   if (!refresh) return;
+  // A mesma conta conectada em outra clínica usa a mesma autorização: revogar derrubaria lá.
+  const { data: account } = await admin
+    .from("google_accounts")
+    .select("email")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (account) {
+    const { count } = await admin
+      .from("google_accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("email", account.email)
+      .neq("id", accountId);
+    if (count) return;
+  }
   await fetch("https://oauth2.googleapis.com/revoke", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

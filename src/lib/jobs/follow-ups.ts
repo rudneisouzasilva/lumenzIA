@@ -188,7 +188,20 @@ async function send(admin: Admin, ready: ClinicReady, due: Due) {
         last_error: (e as Error).message.slice(0, 300),
       })
       .eq("id", due.id);
-    if (error) console.error("[retomadas] desfazer envio:", error.message);
+    if (error?.code === "23505") {
+      // Outra retomada pendente para o contato foi marcada no meio do envio: esta sai da fila.
+      await admin
+        .from("follow_ups")
+        .update({
+          status: "falhou",
+          sent_at: null,
+          failures,
+          last_error: (e as Error).message.slice(0, 300),
+        })
+        .eq("id", due.id);
+    } else if (error) {
+      console.error("[retomadas] desfazer envio:", error.message);
+    }
     throw e;
   }
 
@@ -243,6 +256,7 @@ export async function runFollowUps(budgetMs: number) {
     failed: 0,
   };
   const waiting = new Map<string, string>();
+  const skipped: number[] = [];
   for (const item of due) {
     if (!hasTime()) break;
     try {
@@ -250,12 +264,22 @@ export async function runFollowUps(budgetMs: number) {
         clinics.set(item.clinic_id, prepareClinic(admin, item.clinic_id));
       }
       const ready = await clinics.get(item.clinic_id)!;
-      counts[await send(admin, ready, item)]++;
+      const outcome = await send(admin, ready, item);
+      counts[outcome]++;
+      if (outcome === "skipped") skipped.push(item.id);
       if (!ready.ok) waiting.set(item.clinic_id, ready.why);
     } catch (e) {
       counts.failed++;
       console.error(`[retomadas] retomada ${item.id}:`, (e as Error).message);
     }
+  }
+  if (skipped.length) {
+    const { error } = await admin
+      .from("follow_ups")
+      .update({ checked_at: new Date().toISOString() })
+      .in("id", skipped)
+      .eq("status", "pendente");
+    if (error) console.error("[retomadas] marcar espera:", error.message);
   }
   for (const [clinicId, why] of waiting) {
     if (why !== "fora do expediente") {

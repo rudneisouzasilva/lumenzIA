@@ -779,6 +779,7 @@ export type Database = {
         Row: {
           attempt: number;
           cancel_reason: string | null;
+          checked_at: string | null;
           clinic_id: string;
           contact_id: string;
           conversation_id: number | null;
@@ -801,6 +802,7 @@ export type Database = {
         Insert: {
           attempt?: number;
           cancel_reason?: string | null;
+          checked_at?: string | null;
           clinic_id: string;
           contact_id: string;
           conversation_id?: number | null;
@@ -822,6 +824,7 @@ export type Database = {
         Update: {
           attempt?: number;
           cancel_reason?: string | null;
+          checked_at?: string | null;
           clinic_id?: string;
           contact_id?: string;
           conversation_id?: number | null;

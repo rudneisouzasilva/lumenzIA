@@ -152,6 +152,36 @@ $$;
 create trigger contacts_stage_changed before update of stage_id on public.contacts
   for each row execute function public.contact_stage_changed();
 
+-- O motivo da perda precisa ser da clínica, e só fica com o contato numa etapa "perdido".
+create function public.contact_lost_reason()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.lost_reason_id is null then
+    return new;
+  end if;
+  if not exists (
+    select 1 from public.lost_reasons
+     where id = new.lost_reason_id and clinic_id = new.clinic_id
+  ) then
+    raise exception 'motivo de perda de outra clínica' using errcode = '23503';
+  end if;
+  if not exists (
+    select 1 from public.pipeline_stages
+     where id = new.stage_id and clinic_id = new.clinic_id and kind = 'perdido'
+  ) then
+    new.lost_reason_id := null;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger contacts_lost_reason before insert or update of lost_reason_id, stage_id on public.contacts
+  for each row execute function public.contact_lost_reason();
+
 -- Contato novo entra na etapa "novo contato" da clínica.
 create function public.contact_initial_stage()
 returns trigger
@@ -288,6 +318,7 @@ delete from public.contact_stage_history;
 revoke execute on function public.seed_pipeline(uuid) from public, anon, authenticated;
 revoke execute on function public.apply_stage_rule(uuid, text) from public, anon, authenticated;
 revoke execute on function public.contact_stage_changed() from public, anon, authenticated;
+revoke execute on function public.contact_lost_reason() from public, anon, authenticated;
 revoke execute on function public.contact_initial_stage() from public, anon, authenticated;
 revoke execute on function public.stage_on_message() from public, anon, authenticated;
 revoke execute on function public.stage_on_appointment() from public, anon, authenticated;

@@ -6,8 +6,10 @@ import { z } from "zod";
 import type { FormResult } from "@/lib/auth/validation";
 import { getActionContext } from "@/lib/painel/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Tables } from "@/lib/supabase/database.types";
 import {
   placeholderCount,
+  TEMPLATE_PACK,
   templateBodyProblem,
 } from "@/lib/whatsapp/template-pack";
 import {
@@ -86,7 +88,26 @@ export async function saveTemplateAction(input: unknown): Promise<FormResult> {
   const admin = createAdminClient();
 
   let row;
+  let previous: Pick<
+    Tables<"message_templates">,
+    "body" | "footer" | "example" | "meta_template_id"
+  > | null = null;
   if (v.id) {
+    const { data: current } = await admin
+      .from("message_templates")
+      .select("purpose, body, footer, example, meta_template_id")
+      .eq("id", v.id)
+      .eq("clinic_id", ctx.clinic.id)
+      .maybeSingle();
+    if (!current) return fail("Esta mensagem não existe mais.");
+    // As mensagens que a assistente envia sozinha recebem um número fixo de variáveis.
+    const known = TEMPLATE_PACK.find((t) => t.purpose === current.purpose);
+    if (known && placeholderCount(v.body) > known.params.length) {
+      return fail(
+        `Esta mensagem aceita no máximo ${known.params.length} variáveis: ${known.params.join(", ")}.`,
+      );
+    }
+    previous = current;
     const { data, error } = await admin
       .from("message_templates")
       .update({ body: v.body, footer: v.footer, example: v.example })
@@ -126,6 +147,17 @@ export async function saveTemplateAction(input: unknown): Promise<FormResult> {
   }
 
   const submitError = await submitTemplate(row);
+  // A Meta recusou a edição de uma que já existe lá: o texto volta a ser o que ela conhece.
+  if (submitError && previous?.meta_template_id) {
+    await admin
+      .from("message_templates")
+      .update({
+        body: previous.body,
+        footer: previous.footer,
+        example: previous.example,
+      })
+      .eq("id", row.id);
+  }
   refresh();
   return submitError ? fail(submitError) : { ok: true };
 }
