@@ -2,10 +2,16 @@ import "server-only";
 
 import { createSign } from "node:crypto";
 
+import {
+  parsePatientData,
+  patientDataLines,
+  type BookingFields,
+} from "@/lib/booking-fields";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { callGoogleAgenda } from "./google-agenda";
+import { bookingToolProperties } from "./patient-data";
 
 /**
  * Conexão com a agenda da clínica
@@ -50,7 +56,7 @@ const MAX_BODY_CHARS = 4000;
 const DEFAULT_DURATION_MINUTES = 60; // procedimento que não bate com nenhum cadastrado
 
 /** As ações que a IA pode chamar, em JSON Schema (o Gemini aceita direto). */
-export const AGENDA_TOOLS = [
+const AGENDA_TOOLS = [
   {
     name: "consultar_disponibilidade",
     description:
@@ -87,11 +93,14 @@ export const AGENDA_TOOLS = [
   {
     name: "criar_agendamento",
     description:
-      "Cria um agendamento na agenda da clínica. Só use depois de confirmar com a pessoa nome, procedimento, data e horário. A duração é calculada automaticamente a partir do procedimento cadastrado, não precisa perguntar.",
+      "Cria um agendamento na agenda da clínica. Só use depois de confirmar com a pessoa nome completo, procedimento, data e horário (e os dados que a clínica pede). A duração é calculada automaticamente a partir do procedimento cadastrado, não precisa perguntar.",
     parametersJsonSchema: {
       type: "object",
       properties: {
-        nome_paciente: { type: "string" },
+        nome_paciente: {
+          type: "string",
+          description: "Nome completo da pessoa atendida.",
+        },
         telefone: { type: "string" },
         procedimento: {
           type: "string",
@@ -147,6 +156,22 @@ export const AGENDA_TOOLS = [
   },
 ];
 
+/** As ferramentas de agenda, com os dados que esta clínica pede em "criar_agendamento". */
+export function agendaTools(fields: BookingFields) {
+  const extra = bookingToolProperties(fields);
+  return AGENDA_TOOLS.map((tool) =>
+    tool.name === "criar_agendamento"
+      ? {
+          ...tool,
+          parametersJsonSchema: {
+            ...tool.parametersJsonSchema,
+            properties: { ...tool.parametersJsonSchema.properties, ...extra },
+          },
+        }
+      : tool,
+  );
+}
+
 /** Usado na aba Testar: nunca chama a agenda de verdade, só mostra o que seria enviado. */
 export function simulateAgenda(
   action: string,
@@ -199,7 +224,10 @@ export function durationFor(
   );
 }
 
-/** Para "criar_agendamento": fim e duração calculados a partir do procedimento cadastrado. */
+/**
+ * Para "criar_agendamento": fim e duração calculados a partir do procedimento cadastrado, e os
+ * dados da pessoa em texto ({{dados_paciente}} no modo custom, onde um objeto não cabe).
+ */
 function extraVars(
   action: string,
   params: Record<string, unknown>,
@@ -212,6 +240,9 @@ function extraVars(
   return {
     data_hora_fim: utcToBrasilia(new Date(start.getTime() + minutes * 60_000)),
     duracao_minutos: minutes,
+    dados_paciente: patientDataLines(parsePatientData(params))
+      .map(([label, value]) => `${label}: ${value}`)
+      .join("; "),
   };
 }
 
@@ -414,6 +445,7 @@ async function mirrorAppointment(
         external_ref: ref == null ? null : String(ref),
         source: "ia",
         conversation_id: conversationId,
+        patient_data: parsePatientData(params),
       })
       .throwOnError();
   }

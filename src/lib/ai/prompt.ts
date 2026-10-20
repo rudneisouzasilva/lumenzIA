@@ -1,3 +1,9 @@
+import {
+  FIXED_FIELD_LABELS,
+  FIXED_FIELDS,
+  parseBookingFields,
+} from "@/lib/booking-fields";
+
 import { nationalHolidayOn } from "./holidays";
 
 /** O que a clínica configurou no painel e a IA usa para responder. */
@@ -16,6 +22,8 @@ export type AssistantContext = {
     extra_closed_dates: string;
     require_evaluation: boolean;
     evaluation_validity_days: number | null;
+    /** Os dados pedidos no agendamento (veja lib/booking-fields). */
+    booking_fields: unknown;
   };
   faqs: { question: string; answer: string }[];
   questions: { question: string }[];
@@ -60,6 +68,33 @@ function nowInBrasilia(now: Date) {
 }
 
 const hhmm = (time: string) => time.slice(0, 5);
+
+/** Quais dados pedir antes de criar um agendamento, e quais esta pessoa já informou. */
+function bookingDataRule(rawFields: unknown, knownFields: string[]) {
+  const fields = parseBookingFields(rawFields);
+  const asked = [
+    ...FIXED_FIELDS.filter((k) => fields[k] !== "desligado").map(
+      (k) =>
+        `${FIXED_FIELD_LABELS[k]} (${fields[k] === "obrigatorio" ? "obrigatório" : "opcional"})`,
+    ),
+    ...fields.personalizados.map(
+      (c) => `${c.nome} (${c.obrigatorio ? "obrigatório" : "opcional"})`,
+    ),
+  ];
+  if (!asked.length) {
+    return "- Para criar um agendamento, peça só o nome completo da pessoa atendida. Não peça outros dados pessoais (CPF, e-mail, endereço etc.).";
+  }
+  const known = knownFields.length
+    ? ` Esta pessoa já informou antes: ${knownFields.join(", ")}. Não pergunte de novo (o sistema preenche sozinho), a menos que ela queira mudar.`
+    : "";
+  return (
+    `- Para criar um agendamento, a clínica pede: nome completo (obrigatório), ${asked.join(", ")}. ` +
+    "Depois que a pessoa escolher o horário, peça o que faltar em uma única mensagem curta (aqui pode ser mais de uma pergunta). " +
+    "Se a pessoa não quiser informar um dado opcional, siga sem ele. Quando o agendamento for para OUTRA pessoa, os dados são dela. " +
+    'Envie a data de nascimento no formato AAAA-MM-DD. Não peça dados que não estão nesta lista. Se a ferramenta responder com motivo "dados_faltando" ou "dado_invalido", peça o dado com gentileza.' +
+    known
+  );
+}
 
 /** Como cada tipo de procedimento aparece na lista que a IA recebe. */
 function serviceTag(kind: string, requireEvaluation: boolean) {
@@ -124,9 +159,12 @@ export function buildSystemPrompt(
     followUpEnabled = false,
     sentImageIds = [],
     previousSummaries = [],
+    knownPatientFields = [],
     now = new Date(),
   }: {
     agendaEnabled: boolean;
+    /** Os dados pedidos no agendamento que esta pessoa já informou antes. */
+    knownPatientFields?: string[];
     followUpEnabled?: boolean;
     sentImageIds?: string[];
     previousSummaries?: string[];
@@ -163,6 +201,7 @@ export function buildSystemPrompt(
       "- NUNCA peça o telefone da própria pessoa: o sistema já identifica automaticamente quem está mandando mensagem. Só pergunte um telefone diferente se o agendamento for para OUTRA pessoa (ex.: a mãe agendando para o filho).",
       '- Ao criar um agendamento, use no campo "procedimento" exatamente o nome de um dos procedimentos cadastrados abaixo, quando houver um que combine com o que a pessoa quer. A duração é calculada automaticamente a partir dele.',
       '- Se a pessoa pedir para mudar, remarcar ou cancelar um agendamento, SEMPRE chame primeiro "consultar_agendamentos" para achar o agendamento existente dela. Nunca peça para a pessoa lembrar de cor o id ou a data exata. Confirme com ela qual dos agendamentos encontrados é o correto antes de cancelar ou criar um novo.',
+      bookingDataRule(clinic.booking_fields, knownPatientFields),
     );
     if (
       clinic.require_evaluation &&

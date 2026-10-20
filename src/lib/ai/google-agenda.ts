@@ -1,5 +1,6 @@
 import "server-only";
 
+import { parsePatientData, patientDataLines } from "@/lib/booking-fields";
 import { calendarApi, GoogleError } from "@/lib/google/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -357,6 +358,9 @@ async function create(
         summary: `${text(params.procedimento) || "Atendimento"} - ${text(params.nome_paciente)}`,
         description: [
           `Telefone: ${phone}.`,
+          ...patientDataLines(parsePatientData(params)).map(
+            ([label, value]) => `${label}: ${value}`,
+          ),
           notes ? `Observações: ${notes}` : "",
           "Agendado pela assistente LumenzIA no WhatsApp.",
         ]
