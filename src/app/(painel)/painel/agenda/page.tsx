@@ -2,11 +2,13 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { CalendarDays } from "lucide-react";
 
+import { BookingFieldsForm } from "@/components/painel/booking-fields-settings";
 import {
   GoogleAgendaSettings,
   type AccountItem,
 } from "@/components/painel/google-agenda-settings";
-import { PageHeader, PanelSkeleton } from "@/components/painel/page";
+import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
+import { parseBookingFields } from "@/lib/booking-fields";
 import { googleCredentials, listCalendars } from "@/lib/google/client";
 import { getPanelContext } from "@/lib/painel/context";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,7 +43,7 @@ export default function AgendaPage({
       <PageHeader
         icon={CalendarDays}
         title="Agenda"
-        description="Conecte o Google Agenda da clínica para a assistente ver os horários livres e marcar no calendário de cada profissional."
+        description="Escolha os dados que a assistente pede ao agendar e conecte o Google Agenda da clínica para ela ver os horários livres e marcar no calendário de cada profissional."
       />
       <Suspense fallback={<PanelSkeleton />}>
         <Settings searchParams={searchParams} />
@@ -58,32 +60,42 @@ async function Settings({
     searchParams,
   ]);
   const admin = createAdminClient();
-  const [{ data: integration }, { data: professionals }, { data: accounts }] =
-    await Promise.all([
-      admin
-        .from("integrations")
-        .select(
-          "mode, enabled, provider_name, google_account_id, google_calendar_id, google_calendar_name",
-        )
-        .eq("clinic_id", clinic.id)
-        .single()
-        .throwOnError(),
-      admin
-        .from("professionals")
-        .select(
-          "id, name, google_account_id, google_calendar_id, google_calendar_name",
-        )
-        .eq("clinic_id", clinic.id)
-        .order("sort_order")
-        .order("id")
-        .throwOnError(),
-      supabase
-        .from("google_accounts")
-        .select("id, email, status, last_error")
-        .eq("clinic_id", clinic.id)
-        .order("created_at")
-        .throwOnError(),
-    ]);
+  const [
+    { data: integration },
+    { data: professionals },
+    { data: accounts },
+    { data: settings },
+  ] = await Promise.all([
+    admin
+      .from("integrations")
+      .select(
+        "mode, enabled, provider_name, google_account_id, google_calendar_id, google_calendar_name",
+      )
+      .eq("clinic_id", clinic.id)
+      .single()
+      .throwOnError(),
+    admin
+      .from("professionals")
+      .select(
+        "id, name, google_account_id, google_calendar_id, google_calendar_name",
+      )
+      .eq("clinic_id", clinic.id)
+      .order("sort_order")
+      .order("id")
+      .throwOnError(),
+    supabase
+      .from("google_accounts")
+      .select("id, email, status, last_error")
+      .eq("clinic_id", clinic.id)
+      .order("created_at")
+      .throwOnError(),
+    supabase
+      .from("clinics")
+      .select("booking_fields")
+      .eq("id", clinic.id)
+      .single()
+      .throwOnError(),
+  ]);
 
   // As agendas de cada conta, lidas no Google agora.
   const items: AccountItem[] = await Promise.all(
@@ -109,29 +121,39 @@ async function Settings({
     typeof params.google === "string" ? NOTICES[params.google] : undefined;
 
   return (
-    <GoogleAgendaSettings
-      notice={status ?? null}
-      googleReady={Boolean(googleCredentials())}
-      usingGoogle={integration.mode === "google" && integration.enabled}
-      otherSystem={
-        integration.mode !== "google" && integration.enabled
-          ? integration.provider_name || "o sistema da clínica"
-          : null
-      }
-      accounts={items}
-      main={{
-        value: key(
-          integration.google_account_id,
-          integration.google_calendar_id,
-        ),
-        name: integration.google_calendar_name,
-      }}
-      professionals={professionals.map((p) => ({
-        id: p.id,
-        name: p.name,
-        value: key(p.google_account_id, p.google_calendar_id),
-        calendarName: p.google_calendar_name,
-      }))}
-    />
+    <div className="space-y-6">
+      <PanelCard
+        title="Dados pedidos no agendamento"
+        description="O que a assistente pergunta antes de marcar. Ela pede tudo de uma vez, depois que a pessoa escolhe o horário."
+      >
+        <BookingFieldsForm
+          initial={parseBookingFields(settings.booking_fields)}
+        />
+      </PanelCard>
+      <GoogleAgendaSettings
+        notice={status ?? null}
+        googleReady={Boolean(googleCredentials())}
+        usingGoogle={integration.mode === "google" && integration.enabled}
+        otherSystem={
+          integration.mode !== "google" && integration.enabled
+            ? integration.provider_name || "o sistema da clínica"
+            : null
+        }
+        accounts={items}
+        main={{
+          value: key(
+            integration.google_account_id,
+            integration.google_calendar_id,
+          ),
+          name: integration.google_calendar_name,
+        }}
+        professionals={professionals.map((p) => ({
+          id: p.id,
+          name: p.name,
+          value: key(p.google_account_id, p.google_calendar_id),
+          calendarName: p.google_calendar_name,
+        }))}
+      />
+    </div>
   );
 }

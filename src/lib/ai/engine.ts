@@ -11,11 +11,18 @@ import {
 } from "@google/genai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  parseBookingFields,
+  parsePatientData,
+  type BookingFields,
+  type PatientData,
+} from "@/lib/booking-fields";
+import { normalizePhone } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
 import {
-  AGENDA_TOOLS,
+  agendaTools,
   callAgenda,
   simulateAgenda,
   type AgendaResult,
@@ -27,6 +34,7 @@ import {
   type FollowUpMode,
 } from "./follow-up";
 import { checkEvaluation } from "./evaluation";
+import { knownFieldNames, preparePatientData } from "./patient-data";
 import { buildSystemPrompt, parseReply, type AssistantContext } from "./prompt";
 
 const DEFAULT_MODEL = "gemini-3.8-flash";
@@ -54,6 +62,8 @@ export type AgendaMode =
       kind: "live";
       integration: Integration;
       contactPhone: string;
+      /** O contato desta conversa, para reaproveitar os dados que a pessoa já informou. */
+      contactId: string | null;
       conversationId: number;
     }
   | { kind: "simulate" }
@@ -76,7 +86,7 @@ export async function loadAssistantContext(
     supabase
       .from("clinics")
       .select(
-        "name, assistant_name, tone, business_info, past_conversations, behavior_rules, work_days, work_hours_start, work_hours_end, works_on_holidays, extra_closed_dates, require_evaluation, evaluation_validity_days",
+        "name, assistant_name, tone, business_info, past_conversations, behavior_rules, work_days, work_hours_start, work_hours_end, works_on_holidays, extra_closed_dates, require_evaluation, evaluation_validity_days, booking_fields",
       )
       .eq("id", clinicId)
       .single()
@@ -231,6 +241,38 @@ async function evaluationBlock(
   }
 }
 
+/** O que a própria pessoa já informou em agendamentos anteriores (vazio se não der para ler). */
+async function loadKnownPatientData(contactId: string | null) {
+  if (!contactId) return {};
+  const { data, error } = await createAdminClient()
+    .from("contacts")
+    .select("patient_data")
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) console.error("[agenda] dados do contato:", error.message);
+  return parsePatientData(data?.patient_data);
+}
+
+const samePhone = (a: unknown, b: string) =>
+  normalizePhone(String(a ?? "")) === normalizePhone(b);
+
+/**
+ * Para "criar_agendamento": confere e completa os dados da pessoa. Os já conhecidos só valem
+ * quando o agendamento é para quem está conversando, não para outra pessoa.
+ */
+function patientDataBlock(
+  fields: BookingFields,
+  known: PatientData,
+  agenda: Exclude<AgendaMode, null>,
+  action: string,
+  args: Record<string, unknown>,
+) {
+  if (action !== "criar_agendamento") return null;
+  const own =
+    agenda.kind !== "live" || samePhone(args.telefone, agenda.contactPhone);
+  return preparePatientData(fields, args, own ? known : {});
+}
+
 /**
  * Gera a resposta da assistente. `history` termina com a mensagem do paciente. Resolve as
  * chamadas de ferramenta (agenda e retorno combinado, até 4 rodadas) antes do texto final.
@@ -251,14 +293,18 @@ export async function generateReply({
   sentImageIds?: string[];
   previousSummaries?: string[];
 }) {
+  const fields = parseBookingFields(context.clinic.booking_fields);
+  const known =
+    agenda?.kind === "live" ? await loadKnownPatientData(agenda.contactId) : {};
   const system = buildSystemPrompt(context, {
     agendaEnabled: agenda !== null,
+    knownPatientFields: knownFieldNames(fields, known),
     followUpEnabled: followUp !== null,
     sentImageIds,
     previousSummaries,
   });
   const tools: FunctionDeclaration[] = [
-    ...(agenda ? AGENDA_TOOLS : []),
+    ...(agenda ? agendaTools(fields) : []),
     ...(followUp ? [FOLLOW_UP_TOOL] : []),
   ];
   const contents: Content[] = history
@@ -304,6 +350,7 @@ export async function generateReply({
           args.telefone = agenda.contactPhone;
         }
         result =
+          patientDataBlock(fields, known, agenda, name, args) ??
           (await evaluationBlock(
             agenda.integration.clinic_id,
             context,
@@ -318,7 +365,9 @@ export async function generateReply({
             agenda.conversationId,
           ));
       } else {
-        result = simulateAgenda(name, args);
+        result =
+          patientDataBlock(fields, known, agenda, name, args) ??
+          simulateAgenda(name, args);
       }
       toolCalls.push({ name, args, result });
       responses.push({

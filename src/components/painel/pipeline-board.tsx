@@ -69,6 +69,8 @@ export type BoardContact = {
   lostReasonId: string | null;
   lastContactAt: string;
   optedOut: boolean;
+  /** O que a pessoa informou ao agendar ("E-mail", "CPF"...), como [rótulo, valor]. */
+  patientData: [string, string][];
   lastConversationId: number | null;
   lastSummary: string | null;
 };
@@ -486,6 +488,16 @@ function ContactDialog({
           <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm">
             {contact.lastSummary}
           </p>
+        )}
+        {contact.patientData.length > 0 && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-xl border px-3 py-2 text-sm">
+            {contact.patientData.map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="min-w-0 break-words">{value}</dd>
+              </div>
+            ))}
+          </dl>
         )}
         {contact.lastConversationId && (
           <Button asChild variant="outline" size="sm" className="w-fit">

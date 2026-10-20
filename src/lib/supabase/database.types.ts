@@ -226,6 +226,7 @@ export type Database = {
           external_ref: string | null;
           id: number;
           patient_name: string;
+          patient_data: Json;
           procedure_name: string;
           professional_name: string;
           reminder_sent_at: string | null;
@@ -244,6 +245,7 @@ export type Database = {
           external_ref?: string | null;
           id?: never;
           patient_name?: string;
+          patient_data?: Json;
           procedure_name?: string;
           professional_name?: string;
           reminder_sent_at?: string | null;
@@ -261,6 +263,7 @@ export type Database = {
           external_ref?: string | null;
           id?: never;
           patient_name?: string;
+          patient_data?: Json;
           procedure_name?: string;
           professional_name?: string;
           reminder_sent_at?: string | null;
@@ -366,6 +369,7 @@ export type Database = {
         Row: {
           assistant_name: string;
           behavior_rules: string;
+          booking_fields: Json;
           business_info: string;
           conversation_timeout_hours: number | null;
           created_at: string;
@@ -403,6 +407,7 @@ export type Database = {
         Insert: {
           assistant_name?: string;
           behavior_rules?: string;
+          booking_fields?: Json;
           business_info?: string;
           conversation_timeout_hours?: number | null;
           created_at?: string;
@@ -439,6 +444,7 @@ export type Database = {
         Update: {
           assistant_name?: string;
           behavior_rules?: string;
+          booking_fields?: Json;
           business_info?: string;
           conversation_timeout_hours?: number | null;
           created_at?: string;
@@ -590,6 +596,7 @@ export type Database = {
           notes: string;
           opted_out_at: string | null;
           owner_id: string | null;
+          patient_data: Json;
           phone: string;
           stage_changed_at: string | null;
           stage_id: string | null;
@@ -609,6 +616,7 @@ export type Database = {
           notes?: string;
           opted_out_at?: string | null;
           owner_id?: string | null;
+          patient_data?: Json;
           phone: string;
           stage_changed_at?: string | null;
           stage_id?: string | null;
@@ -627,6 +635,7 @@ export type Database = {
           notes?: string;
           opted_out_at?: string | null;
           owner_id?: string | null;
+          patient_data?: Json;
           phone?: string;
           stage_changed_at?: string | null;
           stage_id?: string | null;

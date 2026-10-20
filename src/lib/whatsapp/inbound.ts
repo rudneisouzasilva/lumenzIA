@@ -435,6 +435,7 @@ async function processMessage(
             kind: "live",
             integration,
             contactPhone: from,
+            contactId: conversation.contact_id,
             conversationId: conversation.id,
           }
         : null,

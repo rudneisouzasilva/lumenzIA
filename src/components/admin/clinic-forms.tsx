@@ -370,7 +370,10 @@ export function AgendaForm({
               Uma chave por ação (consultar_disponibilidade, criar_agendamento,
               consultar_agendamentos, cancelar_agendamento, listar_agendamentos)
               com method, url, headers e body. Use <code>{"{{apiKey}}"}</code> e{" "}
-              <code>{"{{calendarId}}"}</code>.
+              <code>{"{{calendarId}}"}</code>. Em criar_agendamento, os dados
+              pedidos pela clínica chegam em <code>{"{{email}}"}</code>,{" "}
+              <code>{"{{cpf}}"}</code>, <code>{"{{data_nascimento}}"}</code> e{" "}
+              <code>{"{{dados_paciente}}"}</code> (tudo em texto).
             </>
           }
           className="[&_textarea]:min-h-64 [&_textarea]:font-mono [&_textarea]:text-xs"
