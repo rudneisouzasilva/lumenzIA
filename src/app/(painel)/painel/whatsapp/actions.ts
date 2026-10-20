@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 
 import type { FormResult } from "@/lib/auth/validation";
@@ -11,6 +12,7 @@ import {
   embeddedSignupConfig,
   retryHistorySync,
 } from "@/lib/whatsapp/embedded-signup";
+import { ensureTemplatePack } from "@/lib/whatsapp/templates";
 
 const metaId = z.string().regex(/^\d{5,30}$/);
 const connectSchema = z.object({
@@ -58,6 +60,16 @@ export async function connectWhatsappAction(
       ...parsed.data,
     });
     if (!result.ok) return result;
+    // As mensagens prontas vão para a aprovação da Meta logo depois, sem segurar a tela.
+    const clinicId = ctx.clinic.id;
+    after(async () => {
+      try {
+        const errors = await ensureTemplatePack(clinicId);
+        if (errors.length) console.warn("[templates]", errors.join(" | "));
+      } catch (e) {
+        console.error("[templates] pacote:", (e as Error).message);
+      }
+    });
     refresh();
     return { ok: true, warning: result.warning };
   } catch (e) {

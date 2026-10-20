@@ -4,6 +4,8 @@ import { randomInt } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { graph, GraphError, graphVersion } from "./graph";
+
 /**
  * "Conectar WhatsApp" (Cadastro Incorporado da Meta, modelo Tech Provider)
  * -----------------------------------------------------------------------
@@ -18,52 +20,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * guarda o token no Vault da clínica.
  */
 
-const GRAPH = "https://graph.facebook.com";
-
-export function graphVersion() {
-  return process.env.WHATSAPP_API_VERSION?.trim() || "v21.0";
-}
-
 /** O que o navegador precisa para abrir a janela da Meta (nada disso é segredo). */
 export function embeddedSignupConfig() {
   const appId = process.env.META_APP_ID?.trim();
   const configId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID?.trim();
   if (!appId || !configId || !process.env.META_APP_SECRET?.trim()) return null;
   return { appId, configId, graphVersion: graphVersion() };
-}
-
-export class GraphError extends Error {
-  constructor(
-    message: string,
-    readonly code?: number,
-  ) {
-    super(message);
-  }
-}
-
-async function graph<T>(
-  path: string,
-  init: { method?: string; token?: string; body?: unknown } = {},
-): Promise<T> {
-  const res = await fetch(`${GRAPH}/${graphVersion()}/${path}`, {
-    method: init.method ?? "GET",
-    headers: {
-      ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}),
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: init.body ? JSON.stringify(init.body) : undefined,
-    signal: AbortSignal.timeout(15_000),
-  });
-  const json = (await res.json().catch(() => ({}))) as {
-    error?: { message?: string; code?: number };
-  } & T;
-  if (!res.ok || json.error) {
-    throw new GraphError(
-      json.error?.message ?? `Graph API ${res.status}`,
-      json.error?.code,
-    );
-  }
-  return json;
 }
 
 /** Troca o `code` do FB.login pelo token da integração (não expira). */

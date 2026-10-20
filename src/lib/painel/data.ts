@@ -1,5 +1,8 @@
 import "server-only";
 
+import { publicImageUrl } from "@/lib/storage";
+import type { TemplatePurpose } from "@/lib/whatsapp/template-pack";
+
 import { getPanelContext } from "./context";
 import { LIST_COLUMNS, type ListItem, type ListKind } from "./validation";
 
@@ -48,5 +51,42 @@ export async function getHours() {
     worksOnHolidays: settings.works_on_holidays,
     extraClosedDates: settings.extra_closed_dates,
     reminderHoursBefore: integration?.reminder_hours_before ?? 0,
+  };
+}
+
+/** O que a caixa de entrada precisa (a tela Conversas e a janela flutuante do chat). */
+export async function getInboxData() {
+  const [{ supabase, clinic }, settings] = await Promise.all([
+    getPanelContext(),
+    getClinicSettings(),
+  ]);
+  const [{ data: images }, { data: templates }] = await Promise.all([
+    supabase
+      .from("images")
+      .select("id, storage_path, description")
+      .eq("clinic_id", clinic.id)
+      .order("created_at"),
+    supabase
+      .from("message_templates")
+      .select("id, purpose, name, body")
+      .eq("clinic_id", clinic.id)
+      .eq("status", "APPROVED")
+      .neq("category", "AUTHENTICATION")
+      .neq("purpose", "aviso_equipe")
+      .order("created_at"),
+  ]);
+  return {
+    clinicId: clinic.id,
+    whatsappConnected: Boolean(settings.whatsapp_phone_number_id),
+    images: (images ?? []).map((img) => ({
+      id: img.id,
+      url: publicImageUrl(img.storage_path),
+      description: img.description,
+    })),
+    templates: (templates ?? []).map((t) => ({
+      ...t,
+      purpose: t.purpose as TemplatePurpose,
+    })),
+    clinic: { name: settings.name, assistantName: settings.assistant_name },
   };
 }

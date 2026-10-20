@@ -11,6 +11,8 @@ import {
   Inbox as InboxIcon,
   Loader2,
   MessageSquareOff,
+  MessageSquarePlus,
+  MessageSquareText,
   SendHorizontal,
   Sparkles,
   X,
@@ -25,6 +27,11 @@ import {
   takeConversation,
   type AttendanceResult,
 } from "@/app/(painel)/painel/atendimento/actions";
+import {
+  TemplateSendDialog,
+  type ApprovedTemplate,
+  type ClinicInfo,
+} from "@/components/painel/template-send-dialog";
 import { Button } from "@/components/ui/button";
 import {
   formatDateTime,
@@ -101,12 +108,20 @@ export function Inbox({
   whatsappConnected,
   initialConversationId,
   images,
+  templates,
+  clinic,
+  compact = false,
 }: {
   clinicId: string;
   whatsappConnected: boolean;
   initialConversationId: number | null;
   images: ClinicImage[];
+  templates: ApprovedTemplate[];
+  clinic: ClinicInfo;
+  /** Uma coluna só (lista ou conversa), para a janela flutuante do chat. */
+  compact?: boolean;
 }) {
+  const [newOpen, setNewOpen] = useState(false);
   const [client, setClient] = useState<Client | null>(null);
   const [live, setLive] = useState(false);
   const [tab, setTab] = useState<Tab>("todas");
@@ -271,9 +286,24 @@ export function Inbox({
   const selectedClosed = closed?.find((r) => r.id === selectedId) ?? null;
 
   const refresh = () => setVersion((v) => v + 1);
+  const openConversation = (id: number) => {
+    setTab("todas");
+    setSelectedId(id);
+    refresh();
+  };
+  const templateProps = { templates, clinic, onSent: openConversation };
 
   return (
-    <div className="space-y-4">
+    <div
+      className={cn(
+        compact ? "flex h-full min-h-0 flex-col gap-3" : "space-y-4",
+      )}
+    >
+      <TemplateSendDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        {...templateProps}
+      />
       {!whatsappConnected && (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
           O WhatsApp da clínica ainda não está conectado. As conversas aparecem
@@ -286,7 +316,10 @@ export function Inbox({
         <div
           role="tablist"
           aria-label="Filtrar conversas"
-          className="flex flex-wrap gap-1 rounded-xl border bg-card p-1"
+          className={cn(
+            "flex gap-1 rounded-xl border bg-card p-1",
+            compact ? "max-w-full overflow-x-auto" : "flex-wrap",
+          )}
         >
           {TABS.map((t) => {
             const count = counts[t.key];
@@ -298,7 +331,7 @@ export function Inbox({
                 aria-selected={tab === t.key}
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                  "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
                   tab === t.key
                     ? "bg-primary/10 font-medium text-primary"
                     : "text-muted-foreground hover:text-foreground",
@@ -321,6 +354,16 @@ export function Inbox({
             );
           })}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(!compact && "order-last sm:order-none")}
+          disabled={!whatsappConnected}
+          onClick={() => setNewOpen(true)}
+        >
+          <MessageSquarePlus />
+          Nova conversa
+        </Button>
         <span
           className="ml-auto flex items-center gap-2 text-xs text-muted-foreground"
           title={
@@ -344,11 +387,22 @@ export function Inbox({
         </span>
       </div>
 
-      <div className="grid h-[min(75vh,44rem)] overflow-hidden rounded-2xl border bg-card shadow-sm lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <div
+        className={cn(
+          "grid overflow-hidden rounded-2xl border bg-card shadow-sm",
+          compact
+            ? "min-h-0 flex-1"
+            : "h-[min(75vh,44rem)] lg:grid-cols-[22rem_minmax(0,1fr)]",
+        )}
+      >
         <aside
           className={cn(
             "min-h-0 flex-col border-r",
-            selectedId !== null ? "hidden lg:flex" : "flex",
+            selectedId !== null
+              ? compact
+                ? "hidden"
+                : "hidden lg:flex"
+              : "flex",
           )}
         >
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -372,7 +426,11 @@ export function Inbox({
         <section
           className={cn(
             "min-h-0 min-w-0 flex-col",
-            selectedId !== null ? "flex" : "hidden lg:flex",
+            selectedId !== null
+              ? "flex"
+              : compact
+                ? "hidden"
+                : "hidden lg:flex",
           )}
         >
           {selectedId === null ? (
@@ -388,6 +446,8 @@ export function Inbox({
               images={images}
               whatsappConnected={whatsappConnected}
               now={now}
+              compact={compact}
+              templateProps={templateProps}
               onBack={() => setSelectedId(null)}
               onChanged={refresh}
               onStateChange={(state) =>
@@ -635,6 +695,8 @@ function ConversationView({
   images,
   whatsappConnected,
   now,
+  compact,
+  templateProps,
   onBack,
   onChanged,
   onStateChange,
@@ -647,12 +709,19 @@ function ConversationView({
   images: ClinicImage[];
   whatsappConnected: boolean;
   now: number;
+  compact: boolean;
+  templateProps: {
+    templates: ApprovedTemplate[];
+    clinic: ClinicInfo;
+    onSent: (conversationId: number) => void;
+  };
   onBack: () => void;
   onChanged: () => void;
   onStateChange: (state: "ia" | "equipe") => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<"take" | "return" | "end" | null>(null);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const phone = open?.contact_phone ?? closed?.contact_phone ?? "";
@@ -702,7 +771,7 @@ function ConversationView({
         <Button
           variant="ghost"
           size="icon"
-          className="-ml-2 lg:hidden"
+          className={cn("-ml-2", !compact && "lg:hidden")}
           onClick={onBack}
           aria-label="Voltar para a lista"
         >
@@ -825,15 +894,29 @@ function ConversationView({
         )}
       </div>
 
+      <TemplateSendDialog
+        open={templateOpen}
+        onOpenChange={setTemplateOpen}
+        {...templateProps}
+        conversationId={open ? conversationId : null}
+        phone={phone || null}
+        contactName={name}
+      />
+
       {open ? (
         <Composer
           conversationId={conversationId}
           images={images}
+          onTemplate={
+            whatsappConnected && windowClosed
+              ? () => setTemplateOpen(true)
+              : null
+          }
           disabledReason={
             !whatsappConnected
               ? "O WhatsApp da clínica ainda não está conectado."
               : windowClosed
-                ? "Passaram 24 horas desde a última mensagem do paciente. O WhatsApp só libera a resposta quando ele escrever de novo."
+                ? "Passaram 24 horas desde a última mensagem do paciente. Para escrever agora, use uma mensagem pronta aprovada pela Meta."
                 : null
           }
           aiActive={open.attendance_state !== "equipe"}
@@ -843,11 +926,22 @@ function ConversationView({
           }}
         />
       ) : (
-        <p className="flex items-center justify-center gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
-          <MessageSquareOff className="size-4" />
-          Conversa encerrada. Se o paciente escrever de novo, uma nova conversa
-          começa.
-        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3 border-t px-4 py-3 text-sm text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <MessageSquareOff className="size-4" />
+            Conversa encerrada.
+          </span>
+          {whatsappConnected && phone && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTemplateOpen(true)}
+            >
+              <MessageSquareText />
+              Retomar com mensagem pronta
+            </Button>
+          )}
+        </div>
       )}
     </>
   );
@@ -917,12 +1011,15 @@ function Composer({
   images,
   disabledReason,
   aiActive,
+  onTemplate,
   onSent,
 }: {
   conversationId: number;
   images: ClinicImage[];
   disabledReason: string | null;
   aiActive: boolean;
+  /** Fora das 24 horas: abre o envio de uma mensagem pronta. */
+  onTemplate: (() => void) | null;
   onSent: () => void;
 }) {
   const [text, setText] = useState("");
@@ -954,9 +1051,15 @@ function Composer({
   return (
     <div className="border-t bg-[#f0f2f5] dark:bg-[#202c33]">
       {disabledReason ? (
-        <p className="px-4 pt-3 text-xs text-muted-foreground">
-          {disabledReason}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-3 text-xs text-muted-foreground">
+          <p className="min-w-0 flex-1">{disabledReason}</p>
+          {onTemplate && (
+            <Button size="sm" onClick={onTemplate}>
+              <MessageSquareText />
+              Enviar mensagem pronta
+            </Button>
+          )}
+        </div>
       ) : (
         aiActive && (
           <p className="px-4 pt-3 text-xs text-muted-foreground">

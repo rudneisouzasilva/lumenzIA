@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   ListChecks,
   MessageCircleQuestion,
+  MessageSquareText,
   MessagesSquare,
   Rocket,
   Smartphone,
@@ -37,6 +38,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "Conversas",
         icon: Headset,
         keywords: "atendimento whatsapp caixa de entrada assumir humano fila",
+      },
+      {
+        href: "/painel/mensagens",
+        label: "Mensagens prontas",
+        icon: MessageSquareText,
+        keywords: "templates modelos meta aprovação 24 horas lembrete",
       },
       {
         href: "/painel/relatorios",

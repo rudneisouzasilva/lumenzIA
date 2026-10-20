@@ -667,6 +667,69 @@ export type Database = {
           },
         ];
       };
+      message_templates: {
+        Row: {
+          body: string;
+          category: string;
+          clinic_id: string;
+          created_at: string;
+          example: NonNullable<Json>;
+          footer: string;
+          id: string;
+          language: string;
+          last_error: string | null;
+          meta_template_id: string | null;
+          name: string;
+          purpose: string;
+          rejected_reason: string | null;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          category: string;
+          clinic_id: string;
+          created_at?: string;
+          example?: NonNullable<Json>;
+          footer?: string;
+          id?: string;
+          language?: string;
+          last_error?: string | null;
+          meta_template_id?: string | null;
+          name: string;
+          purpose?: string;
+          rejected_reason?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          category?: string;
+          clinic_id?: string;
+          created_at?: string;
+          example?: NonNullable<Json>;
+          footer?: string;
+          id?: string;
+          language?: string;
+          last_error?: string | null;
+          meta_template_id?: string | null;
+          name?: string;
+          purpose?: string;
+          rejected_reason?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       messages: {
         Row: {
           clinic_id: string;
