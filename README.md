@@ -207,7 +207,7 @@ clínica edita os textos e cria os dela em `/painel/mensagens`.
   assistente.
 - **Contatos a fazer**: `potential_contacts` lista quem conversou, não agendou e pode ser chamado.
 - **Análise da IA** (`ai_insights`): por botão, uma por clínica por mês, em todos os planos. A IA
-  (`GEMINI_INSIGHTS_MODEL`, padrão `gemini-2.5-flash` com mais raciocínio) lê `insights_dataset`:
+  (`GEMINI_INSIGHTS_MODEL`, padrão `gemini-3.8-flash` com mais raciocínio) lê `insights_dataset`:
   12 meses de números e resumos, sem nome nem telefone.
 
 ## Jobs automáticos (pg_cron)

@@ -27,7 +27,7 @@ import {
 } from "./follow-up";
 import { buildSystemPrompt, parseReply, type AssistantContext } from "./prompt";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-3.8-flash";
 const MAX_TOOL_ROUNDS = 4;
 
 /** Erro que pode ser mostrado como está para quem testa no painel. */
