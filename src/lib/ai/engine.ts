@@ -133,12 +133,12 @@ export async function loadAssistantContext(
   };
 }
 
-function geminiModel() {
+export function geminiModel() {
   return process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
 }
 
 let client: GoogleGenAI | null = null;
-function gemini() {
+export function gemini() {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
     throw new AiError(

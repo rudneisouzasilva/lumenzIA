@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Brain,
   CalendarClock,
   CalendarSync,
   CreditCard,
@@ -12,6 +13,7 @@ import {
   MessageCircleQuestion,
   MessageSquareText,
   MessagesSquare,
+  PhoneOutgoing,
   Rocket,
   Smartphone,
   Sparkles,
@@ -64,6 +66,18 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "Relatórios",
         icon: BarChart3,
         keywords: "dashboard indicadores gráficos exportar csv motivos",
+      },
+      {
+        href: "/painel/oportunidades",
+        label: "Contatos a fazer",
+        icon: PhoneOutgoing,
+        keywords: "oportunidades leads potenciais chamar ligar recuperar",
+      },
+      {
+        href: "/painel/analise",
+        label: "Análise da IA",
+        icon: Brain,
+        keywords: "insights inteligência mensal recomendações indicadores",
       },
     ],
   },

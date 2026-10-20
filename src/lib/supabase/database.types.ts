@@ -52,6 +52,64 @@ export type Database = {
           },
         ];
       };
+      ai_insights: {
+        Row: {
+          clinic_id: string;
+          content: Json | null;
+          created_at: string;
+          created_by: string | null;
+          id: number;
+          model: string;
+          month: string;
+          period_from: string;
+          period_to: string;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          content?: Json | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: never;
+          model?: string;
+          month: string;
+          period_from: string;
+          period_to: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          clinic_id?: string;
+          content?: Json | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: never;
+          model?: string;
+          month?: string;
+          period_from?: string;
+          period_to?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ai_insights_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ai_insights_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       ai_questions: {
         Row: {
           clinic_id: string;
@@ -1453,6 +1511,10 @@ export type Database = {
         Args: { p_clinic_id: string; p_name?: string; p_phone: string };
         Returns: string;
       };
+      funnel_stats: {
+        Args: { p_clinic_id: string; p_from: string; p_to: string };
+        Returns: Json;
+      };
       gen_random_uuid: { Args: Record<PropertyKey, never>; Returns: string };
       gen_salt: { Args: { "": string }; Returns: string };
       get_clinic_secret: {
@@ -1463,6 +1525,10 @@ export type Database = {
         Args: { p_default_hours: number; p_limit: number };
         Returns: { clinic_id: string; id: number; last_message_at: string }[];
       };
+      insights_dataset: {
+        Args: { p_clinic_id: string; p_from: string; p_to: string };
+        Returns: Json;
+      };
       invoke_cron_route: { Args: { p_path: string }; Returns: number };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_clinic_member: { Args: { p_clinic_id: string }; Returns: boolean };
@@ -1470,6 +1536,22 @@ export type Database = {
       pgp_armor_headers: {
         Args: { "": string };
         Returns: Record<string, unknown>[];
+      };
+      potential_contacts: {
+        Args: { p_clinic_id: string; p_limit: number };
+        Returns: {
+          contact_id: string;
+          conversation_id: number;
+          conversations: number;
+          last_contact_at: string;
+          last_reason: string | null;
+          last_status: string;
+          last_summary: string | null;
+          name: string | null;
+          phone: string;
+          score: number;
+          stage_name: string | null;
+        }[];
       };
       run_daily_cleanup: { Args: Record<PropertyKey, never>; Returns: Json };
       seed_pipeline: { Args: { p_clinic_id: string }; Returns: undefined };

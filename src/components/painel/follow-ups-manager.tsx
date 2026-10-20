@@ -171,7 +171,7 @@ export function FollowUpsManager({
         </PanelCard>
       )}
 
-      {creating && <CreateDialog onClose={() => setCreating(false)} />}
+      {creating && <FollowUpDialog onClose={() => setCreating(false)} />}
     </div>
   );
 }
@@ -368,9 +368,18 @@ function PendingRow({ item }: { item: FollowUpItem }) {
   );
 }
 
-function CreateDialog({ onClose }: { onClose: () => void }) {
+/** Marcar uma retomada para um número (vazio: a equipe digita). */
+export function FollowUpDialog({
+  initialPhone = "",
+  title = "Marcar retomada",
+  onClose,
+}: {
+  initialPhone?: string;
+  title?: string;
+  onClose: () => void;
+}) {
   const [form, setForm] = useState({
-    phone: "",
+    phone: initialPhone,
     date: "",
     reason: "",
     note: "",
@@ -392,7 +401,7 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <DialogTitle>Marcar retomada</DialogTitle>
+        <DialogTitle>{title}</DialogTitle>
         <DialogDescription>
           No dia escolhido, a LumenzIA manda a mensagem pronta de retomada e a
           assistente continua a conversa quando a pessoa responder.
