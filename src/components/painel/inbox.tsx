@@ -11,6 +11,8 @@ import {
   Inbox as InboxIcon,
   Loader2,
   MessageSquareOff,
+  MessageSquarePlus,
+  MessageSquareText,
   SendHorizontal,
   Sparkles,
   X,
@@ -25,6 +27,11 @@ import {
   takeConversation,
   type AttendanceResult,
 } from "@/app/(painel)/painel/atendimento/actions";
+import {
+  TemplateSendDialog,
+  type ApprovedTemplate,
+  type ClinicInfo,
+} from "@/components/painel/template-send-dialog";
 import { Button } from "@/components/ui/button";
 import {
   formatDateTime,
@@ -46,11 +53,14 @@ type ClosedRow = {
   last_message_at: string;
   status: Database["public"]["Enums"]["conversation_status"];
   summary: string | null;
+  imported: boolean;
   contact_reasons: { name: string } | null;
+  contacts: { name: string; whatsapp_name: string } | null;
 };
 type Message = {
   id: number;
   role: Database["public"]["Enums"]["message_role"];
+  origin: string;
   content: string;
   created_at: string;
   profiles: { full_name: string } | null;
@@ -98,12 +108,20 @@ export function Inbox({
   whatsappConnected,
   initialConversationId,
   images,
+  templates,
+  clinic,
+  compact = false,
 }: {
   clinicId: string;
   whatsappConnected: boolean;
   initialConversationId: number | null;
   images: ClinicImage[];
+  templates: ApprovedTemplate[];
+  clinic: ClinicInfo;
+  /** Uma coluna só (lista ou conversa), para a janela flutuante do chat. */
+  compact?: boolean;
 }) {
+  const [newOpen, setNewOpen] = useState(false);
   const [client, setClient] = useState<Client | null>(null);
   const [live, setLive] = useState(false);
   const [tab, setTab] = useState<Tab>("todas");
@@ -209,7 +227,7 @@ export function Inbox({
     void client
       .from("conversations")
       .select(
-        "id, contact_phone, started_at, last_message_at, status, summary, contact_reasons(name)",
+        "id, contact_phone, started_at, last_message_at, status, summary, imported, contact_reasons(name), contacts(name, whatsapp_name)",
       )
       .eq("clinic_id", clinicId)
       .neq("status", "aberta")
@@ -230,7 +248,7 @@ export function Inbox({
     void client
       .from("messages")
       .select(
-        "id, role, content, created_at, profiles(full_name), images(storage_path, description)",
+        "id, role, origin, content, created_at, profiles(full_name), images(storage_path, description)",
       )
       .eq("conversation_id", selectedId)
       .order("id")
@@ -268,9 +286,24 @@ export function Inbox({
   const selectedClosed = closed?.find((r) => r.id === selectedId) ?? null;
 
   const refresh = () => setVersion((v) => v + 1);
+  const openConversation = (id: number) => {
+    setTab("todas");
+    setSelectedId(id);
+    refresh();
+  };
+  const templateProps = { templates, clinic, onSent: openConversation };
 
   return (
-    <div className="space-y-4">
+    <div
+      className={cn(
+        compact ? "flex h-full min-h-0 flex-col gap-3" : "space-y-4",
+      )}
+    >
+      <TemplateSendDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        {...templateProps}
+      />
       {!whatsappConnected && (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
           O WhatsApp da clínica ainda não está conectado. As conversas aparecem
@@ -283,7 +316,10 @@ export function Inbox({
         <div
           role="tablist"
           aria-label="Filtrar conversas"
-          className="flex flex-wrap gap-1 rounded-xl border bg-card p-1"
+          className={cn(
+            "flex gap-1 rounded-xl border bg-card p-1",
+            compact ? "max-w-full overflow-x-auto" : "flex-wrap",
+          )}
         >
           {TABS.map((t) => {
             const count = counts[t.key];
@@ -295,7 +331,7 @@ export function Inbox({
                 aria-selected={tab === t.key}
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                  "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
                   tab === t.key
                     ? "bg-primary/10 font-medium text-primary"
                     : "text-muted-foreground hover:text-foreground",
@@ -318,6 +354,16 @@ export function Inbox({
             );
           })}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(!compact && "order-last sm:order-none")}
+          disabled={!whatsappConnected}
+          onClick={() => setNewOpen(true)}
+        >
+          <MessageSquarePlus />
+          Nova conversa
+        </Button>
         <span
           className="ml-auto flex items-center gap-2 text-xs text-muted-foreground"
           title={
@@ -341,11 +387,22 @@ export function Inbox({
         </span>
       </div>
 
-      <div className="grid h-[min(75vh,44rem)] overflow-hidden rounded-2xl border bg-card shadow-sm lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <div
+        className={cn(
+          "grid overflow-hidden rounded-2xl border bg-card shadow-sm",
+          compact
+            ? "min-h-0 flex-1"
+            : "h-[min(75vh,44rem)] lg:grid-cols-[22rem_minmax(0,1fr)]",
+        )}
+      >
         <aside
           className={cn(
             "min-h-0 flex-col border-r",
-            selectedId !== null ? "hidden lg:flex" : "flex",
+            selectedId !== null
+              ? compact
+                ? "hidden"
+                : "hidden lg:flex"
+              : "flex",
           )}
         >
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -369,7 +426,11 @@ export function Inbox({
         <section
           className={cn(
             "min-h-0 min-w-0 flex-col",
-            selectedId !== null ? "flex" : "hidden lg:flex",
+            selectedId !== null
+              ? "flex"
+              : compact
+                ? "hidden"
+                : "hidden lg:flex",
           )}
         >
           {selectedId === null ? (
@@ -385,6 +446,8 @@ export function Inbox({
               images={images}
               whatsappConnected={whatsappConnected}
               now={now}
+              compact={compact}
+              templateProps={templateProps}
               onBack={() => setSelectedId(null)}
               onChanged={refresh}
               onStateChange={(state) =>
@@ -408,6 +471,14 @@ export function Inbox({
       </div>
     </div>
   );
+}
+
+/** Nome do contato (o digitado pela equipe vale mais que o do perfil) ou o telefone. */
+function contactLabel(
+  phone: string,
+  contact: { name: string; whatsapp_name: string } | null,
+) {
+  return contact?.name || contact?.whatsapp_name || formatPhone(phone);
 }
 
 function ListSkeleton() {
@@ -507,7 +578,7 @@ function OpenList({
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-sm font-medium">
-                      {formatPhone(r.contact_phone)}
+                      {r.contact_name || formatPhone(r.contact_phone)}
                     </span>
                     <span className="shrink-0 text-[11px] text-muted-foreground">
                       {formatRelative(r.last_message_at)}
@@ -566,7 +637,7 @@ function ClosedList({
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-sm font-medium">
-                  {formatPhone(r.contact_phone)}
+                  {contactLabel(r.contact_phone, r.contacts)}
                 </span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
                   {formatRelative(r.last_message_at)}
@@ -584,6 +655,11 @@ function ClosedList({
                 {r.contact_reasons && (
                   <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
                     {r.contact_reasons.name}
+                  </span>
+                )}
+                {r.imported && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                    Importada do celular
                   </span>
                 )}
               </span>
@@ -619,6 +695,8 @@ function ConversationView({
   images,
   whatsappConnected,
   now,
+  compact,
+  templateProps,
   onBack,
   onChanged,
   onStateChange,
@@ -631,15 +709,27 @@ function ConversationView({
   images: ClinicImage[];
   whatsappConnected: boolean;
   now: number;
+  compact: boolean;
+  templateProps: {
+    templates: ApprovedTemplate[];
+    clinic: ClinicInfo;
+    onSent: (conversationId: number) => void;
+  };
   onBack: () => void;
   onChanged: () => void;
   onStateChange: (state: "ia" | "equipe") => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<"take" | "return" | "end" | null>(null);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const phone = open?.contact_phone ?? closed?.contact_phone ?? "";
+  const name =
+    open?.contact_name ||
+    closed?.contacts?.name ||
+    closed?.contacts?.whatsapp_name ||
+    null;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -681,7 +771,7 @@ function ConversationView({
         <Button
           variant="ghost"
           size="icon"
-          className="-ml-2 lg:hidden"
+          className={cn("-ml-2", !compact && "lg:hidden")}
           onClick={onBack}
           aria-label="Voltar para a lista"
         >
@@ -690,7 +780,12 @@ function ConversationView({
         <Avatar phone={phone || "··"} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">
-            {phone ? formatPhone(phone) : "Conversa"}
+            {name ?? (phone ? formatPhone(phone) : "Conversa")}
+            {name && phone && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {formatPhone(phone)}
+              </span>
+            )}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {open
@@ -799,15 +894,29 @@ function ConversationView({
         )}
       </div>
 
+      <TemplateSendDialog
+        open={templateOpen}
+        onOpenChange={setTemplateOpen}
+        {...templateProps}
+        conversationId={open ? conversationId : null}
+        phone={phone || null}
+        contactName={name}
+      />
+
       {open ? (
         <Composer
           conversationId={conversationId}
           images={images}
+          onTemplate={
+            whatsappConnected && windowClosed
+              ? () => setTemplateOpen(true)
+              : null
+          }
           disabledReason={
             !whatsappConnected
               ? "O WhatsApp da clínica ainda não está conectado."
               : windowClosed
-                ? "Passaram 24 horas desde a última mensagem do paciente. O WhatsApp só libera a resposta quando ele escrever de novo."
+                ? "Passaram 24 horas desde a última mensagem do paciente. Para escrever agora, use uma mensagem pronta aprovada pela Meta."
                 : null
           }
           aiActive={open.attendance_state !== "equipe"}
@@ -817,11 +926,22 @@ function ConversationView({
           }}
         />
       ) : (
-        <p className="flex items-center justify-center gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
-          <MessageSquareOff className="size-4" />
-          Conversa encerrada. Se o paciente escrever de novo, uma nova conversa
-          começa.
-        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3 border-t px-4 py-3 text-sm text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <MessageSquareOff className="size-4" />
+            Conversa encerrada.
+          </span>
+          {whatsappConnected && phone && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTemplateOpen(true)}
+            >
+              <MessageSquareText />
+              Retomar com mensagem pronta
+            </Button>
+          )}
+        </div>
       )}
     </>
   );
@@ -855,8 +975,10 @@ function Bubble({ message: m }: { message: Message }) {
             <Headset className="size-3" />
           )}
           {m.role === "model"
-            ? "Assistente"
-            : m.profiles?.full_name || "Equipe"}
+            ? m.origin === "retomada"
+              ? "Assistente · retomada automática"
+              : "Assistente"
+            : staffLabel(m)}
         </p>
       )}
       <p className="break-words whitespace-pre-wrap">{m.content}</p>
@@ -875,17 +997,29 @@ function Bubble({ message: m }: { message: Message }) {
   );
 }
 
+/** Quem da clínica escreveu e por onde. */
+function staffLabel(m: Message) {
+  const who = m.profiles?.full_name || "Equipe";
+  if (m.origin === "celular") return "Equipe · pelo celular";
+  if (m.origin === "historico") return "Clínica · histórico do celular";
+  if (m.origin === "template") return `${who} · mensagem pronta`;
+  return who;
+}
+
 function Composer({
   conversationId,
   images,
   disabledReason,
   aiActive,
+  onTemplate,
   onSent,
 }: {
   conversationId: number;
   images: ClinicImage[];
   disabledReason: string | null;
   aiActive: boolean;
+  /** Fora das 24 horas: abre o envio de uma mensagem pronta. */
+  onTemplate: (() => void) | null;
   onSent: () => void;
 }) {
   const [text, setText] = useState("");
@@ -917,9 +1051,15 @@ function Composer({
   return (
     <div className="border-t bg-[#f0f2f5] dark:bg-[#202c33]">
       {disabledReason ? (
-        <p className="px-4 pt-3 text-xs text-muted-foreground">
-          {disabledReason}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-3 text-xs text-muted-foreground">
+          <p className="min-w-0 flex-1">{disabledReason}</p>
+          {onTemplate && (
+            <Button size="sm" onClick={onTemplate}>
+              <MessageSquareText />
+              Enviar mensagem pronta
+            </Button>
+          )}
+        </div>
       ) : (
         aiActive && (
           <p className="px-4 pt-3 text-xs text-muted-foreground">

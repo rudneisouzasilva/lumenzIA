@@ -61,6 +61,10 @@ const TOOL_LABELS: Record<
     label: "Cancelou um agendamento",
     icon: CalendarX2,
   },
+  agendar_retorno: {
+    label: "Marcou uma retomada da conversa",
+    icon: CalendarClock,
+  },
 };
 
 const now = () =>

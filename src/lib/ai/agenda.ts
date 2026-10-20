@@ -5,11 +5,18 @@ import { createSign } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
+import { callGoogleAgenda } from "./google-agenda";
+
 /**
  * Conexão com a agenda da clínica
  * -------------------------------
- * A maioria dos sistemas de clínica de estética não tem API pública, então há dois modos,
- * configurados pela equipe LumenzIA:
+ * Há três modos:
+ *
+ *  - "google": o Google Agenda conectado pela própria clínica no painel, com uma agenda por
+ *    profissional (veja google-agenda.ts).
+ *
+ * A maioria dos outros sistemas de clínica de estética não tem API pública; para eles, a equipe
+ * LumenzIA configura:
  *
  *  - "webhook" (padrão): um POST em JSON { action, ...parametros } para UM endereço, normalmente um
  *    fluxo no Zapier, Make ou n8n que traduz para o sistema da clínica.
@@ -17,7 +24,7 @@ import type { Database } from "@/lib/supabase/database.types";
  *    {{parametro}} e {{apiKey}} no lugar dos valores. A chave pode ser o JSON de uma conta de
  *    serviço do Google (com um campo extra "calendarId"): trocamos por um token sozinhos.
  *
- * Nos dois modos a resposta é um JSON simples, repassado para a IA interpretar.
+ * Em todos os modos a resposta é um JSON simples, repassado para a IA interpretar.
  */
 
 export type Integration = Database["public"]["Tables"]["integrations"]["Row"];
@@ -170,7 +177,7 @@ export function brasiliaToUtc(dataHora: unknown) {
 }
 
 /** O mesmo horário de volta para "AAAA-MM-DDTHH:mm" em Brasília. */
-function utcToBrasilia(date: Date) {
+export function utcToBrasilia(date: Date) {
   return new Date(date.getTime() - 3 * 3600_000).toISOString().slice(0, 16);
 }
 
@@ -378,6 +385,7 @@ async function mirrorAppointment(
   params: Record<string, unknown>,
   extra: { duracao_minutos?: number },
   result: AgendaResult,
+  conversationId: number | null,
 ) {
   if (result.erro) return;
   const admin = createAdminClient();
@@ -399,6 +407,8 @@ async function mirrorAppointment(
         starts_at: startsAt.toISOString(),
         ends_at: new Date(startsAt.getTime() + minutes * 60_000).toISOString(),
         external_ref: ref == null ? null : String(ref),
+        source: "ia",
+        conversation_id: conversationId,
       })
       .throwOnError();
   }
@@ -441,12 +451,16 @@ async function mirrorAppointment(
   }
 }
 
-/** Consulta ou altera a agenda da clínica pelo modo configurado. Nunca lança erro: devolve { erro }. */
+/**
+ * Consulta ou altera a agenda da clínica pelo modo configurado. Nunca lança erro: devolve { erro }.
+ * `conversationId` liga o agendamento criado à conversa que o originou (indicadores).
+ */
 export async function callAgenda(
   integration: Integration,
   services: { name: string; duration_minutes: number }[],
   action: string,
   params: Record<string, unknown>,
+  conversationId: number | null = null,
 ): Promise<AgendaResult> {
   if (!(ACTIONS as readonly string[]).includes(action)) {
     return { erro: `Ação de agenda desconhecida: ${action}` };
@@ -457,30 +471,34 @@ export async function callAgenda(
 
   const extra = extraVars(action, params, services);
   let result: AgendaResult;
-  try {
-    const { data: apiKey } = await createAdminClient().rpc(
-      "get_clinic_secret",
-      { p_clinic_id: integration.clinic_id, p_kind: "agenda_api_key" },
-    );
-    result =
-      integration.mode === "custom"
-        ? await callCustomApi(integration, apiKey ?? "", action, {
-            ...params,
-            ...extra,
-          })
-        : integration.webhook_url
-          ? await callWebhook(integration, apiKey ?? "", action, {
+  if (integration.mode === "google") {
+    result = await callGoogleAgenda(integration, services, action, params);
+  } else {
+    try {
+      const { data: apiKey } = await createAdminClient().rpc(
+        "get_clinic_secret",
+        { p_clinic_id: integration.clinic_id, p_kind: "agenda_api_key" },
+      );
+      result =
+        integration.mode === "custom"
+          ? await callCustomApi(integration, apiKey ?? "", action, {
               ...params,
               ...extra,
             })
-          : {
-              erro: "A conexão com a agenda não está ativada nesta clínica.",
-            };
-  } catch (e) {
-    console.error(`[agenda] ${action}:`, (e as Error).message);
-    return {
-      erro: "Não foi possível conectar ao sistema de agenda agora. Tente novamente em instantes.",
-    };
+          : integration.webhook_url
+            ? await callWebhook(integration, apiKey ?? "", action, {
+                ...params,
+                ...extra,
+              })
+            : {
+                erro: "A conexão com a agenda não está ativada nesta clínica.",
+              };
+    } catch (e) {
+      console.error(`[agenda] ${action}:`, (e as Error).message);
+      return {
+        erro: "Não foi possível conectar ao sistema de agenda agora. Tente novamente em instantes.",
+      };
+    }
   }
 
   try {
@@ -490,6 +508,7 @@ export async function callAgenda(
       params,
       extra,
       result,
+      conversationId,
     );
   } catch (e) {
     // a resposta ao paciente não depende da cópia local

@@ -52,6 +52,64 @@ export type Database = {
           },
         ];
       };
+      ai_insights: {
+        Row: {
+          clinic_id: string;
+          content: Json | null;
+          created_at: string;
+          created_by: string | null;
+          id: number;
+          model: string;
+          month: string;
+          period_from: string;
+          period_to: string;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          content?: Json | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: never;
+          model?: string;
+          month: string;
+          period_from: string;
+          period_to: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          clinic_id?: string;
+          content?: Json | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: never;
+          model?: string;
+          month?: string;
+          period_from?: string;
+          period_to?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ai_insights_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ai_insights_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       ai_questions: {
         Row: {
           clinic_id: string;
@@ -82,10 +140,87 @@ export type Database = {
           },
         ];
       };
+      appointment_log: {
+        Row: {
+          appointment_id: number | null;
+          booked_at: string;
+          clinic_id: string;
+          contact_id: string | null;
+          conversation_id: number | null;
+          id: number;
+          procedure_name: string;
+          professional_name: string;
+          source: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["appointment_status"];
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          appointment_id?: number | null;
+          booked_at: string;
+          clinic_id: string;
+          contact_id?: string | null;
+          conversation_id?: number | null;
+          id?: never;
+          procedure_name?: string;
+          professional_name?: string;
+          source: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["appointment_status"];
+          updated_at?: string;
+        };
+        Update: {
+          appointment_id?: number | null;
+          booked_at?: string;
+          clinic_id?: string;
+          contact_id?: string | null;
+          conversation_id?: number | null;
+          id?: never;
+          procedure_name?: string;
+          professional_name?: string;
+          source?: string;
+          starts_at?: string;
+          status?: Database["public"]["Enums"]["appointment_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "appointment_log_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: true;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_log_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_log_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointment_log_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       appointments: {
         Row: {
           clinic_id: string;
+          contact_id: string | null;
           contact_phone: string;
+          conversation_id: number | null;
           created_at: string;
           ends_at: string;
           external_ref: string | null;
@@ -94,13 +229,16 @@ export type Database = {
           procedure_name: string;
           professional_name: string;
           reminder_sent_at: string | null;
+          source: string;
           starts_at: string;
           status: Database["public"]["Enums"]["appointment_status"];
         };
         ComputedFields: never;
         Insert: {
           clinic_id: string;
+          contact_id?: string | null;
           contact_phone: string;
+          conversation_id?: number | null;
           created_at?: string;
           ends_at: string;
           external_ref?: string | null;
@@ -109,12 +247,15 @@ export type Database = {
           procedure_name?: string;
           professional_name?: string;
           reminder_sent_at?: string | null;
+          source?: string;
           starts_at: string;
           status?: Database["public"]["Enums"]["appointment_status"];
         };
         Update: {
           clinic_id?: string;
+          contact_id?: string | null;
           contact_phone?: string;
+          conversation_id?: number | null;
           created_at?: string;
           ends_at?: string;
           external_ref?: string | null;
@@ -123,6 +264,7 @@ export type Database = {
           procedure_name?: string;
           professional_name?: string;
           reminder_sent_at?: string | null;
+          source?: string;
           starts_at?: string;
           status?: Database["public"]["Enums"]["appointment_status"];
         };
@@ -132,6 +274,20 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "appointments_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
             referencedColumns: ["id"];
           },
         ];
@@ -214,6 +370,9 @@ export type Database = {
           conversation_timeout_hours: number | null;
           created_at: string;
           extra_closed_dates: string;
+          followup_abandoned_days: number | null;
+          followup_concluded_days: number | null;
+          followup_max_attempts: number;
           id: string;
           is_active: boolean;
           name: string;
@@ -224,8 +383,12 @@ export type Database = {
           template_language: string;
           tone: string;
           updated_at: string;
+          whatsapp_coexistence: boolean;
           whatsapp_connected_at: string | null;
           whatsapp_display_phone: string | null;
+          whatsapp_history_messages: number;
+          whatsapp_history_progress: number;
+          whatsapp_history_status: string;
           whatsapp_phone_number_id: string | null;
           whatsapp_verified_name: string | null;
           whatsapp_waba_id: string | null;
@@ -242,6 +405,9 @@ export type Database = {
           conversation_timeout_hours?: number | null;
           created_at?: string;
           extra_closed_dates?: string;
+          followup_abandoned_days?: number | null;
+          followup_concluded_days?: number | null;
+          followup_max_attempts?: number;
           id?: string;
           is_active?: boolean;
           name: string;
@@ -252,8 +418,12 @@ export type Database = {
           template_language?: string;
           tone?: string;
           updated_at?: string;
+          whatsapp_coexistence?: boolean;
           whatsapp_connected_at?: string | null;
           whatsapp_display_phone?: string | null;
+          whatsapp_history_messages?: number;
+          whatsapp_history_progress?: number;
+          whatsapp_history_status?: string;
           whatsapp_phone_number_id?: string | null;
           whatsapp_verified_name?: string | null;
           whatsapp_waba_id?: string | null;
@@ -269,6 +439,9 @@ export type Database = {
           conversation_timeout_hours?: number | null;
           created_at?: string;
           extra_closed_dates?: string;
+          followup_abandoned_days?: number | null;
+          followup_concluded_days?: number | null;
+          followup_max_attempts?: number;
           id?: string;
           is_active?: boolean;
           name?: string;
@@ -279,8 +452,12 @@ export type Database = {
           template_language?: string;
           tone?: string;
           updated_at?: string;
+          whatsapp_coexistence?: boolean;
           whatsapp_connected_at?: string | null;
           whatsapp_display_phone?: string | null;
+          whatsapp_history_messages?: number;
+          whatsapp_history_progress?: number;
+          whatsapp_history_status?: string;
           whatsapp_phone_number_id?: string | null;
           whatsapp_verified_name?: string | null;
           whatsapp_waba_id?: string | null;
@@ -324,15 +501,176 @@ export type Database = {
           },
         ];
       };
+      contact_stage_history: {
+        Row: {
+          automatic: boolean;
+          changed_at: string;
+          changed_by: string | null;
+          clinic_id: string;
+          contact_id: string;
+          from_stage_id: string | null;
+          id: number;
+          to_stage_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          automatic?: boolean;
+          changed_at?: string;
+          changed_by?: string | null;
+          clinic_id: string;
+          contact_id: string;
+          from_stage_id?: string | null;
+          id?: never;
+          to_stage_id?: string | null;
+        };
+        Update: {
+          automatic?: boolean;
+          changed_at?: string;
+          changed_by?: string | null;
+          clinic_id?: string;
+          contact_id?: string;
+          from_stage_id?: string | null;
+          id?: never;
+          to_stage_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "contact_stage_history_changed_by_fkey";
+            columns: ["changed_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_from_stage_id_fkey";
+            columns: ["from_stage_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contact_stage_history_to_stage_id_fkey";
+            columns: ["to_stage_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      contacts: {
+        Row: {
+          clinic_id: string;
+          created_at: string;
+          estimated_value_cents: number | null;
+          first_contact_at: string;
+          id: string;
+          last_contact_at: string;
+          lost_reason_id: string | null;
+          name: string;
+          notes: string;
+          opted_out_at: string | null;
+          owner_id: string | null;
+          phone: string;
+          stage_changed_at: string | null;
+          stage_id: string | null;
+          updated_at: string;
+          whatsapp_name: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          created_at?: string;
+          estimated_value_cents?: number | null;
+          first_contact_at?: string;
+          id?: string;
+          last_contact_at?: string;
+          lost_reason_id?: string | null;
+          name?: string;
+          notes?: string;
+          opted_out_at?: string | null;
+          owner_id?: string | null;
+          phone: string;
+          stage_changed_at?: string | null;
+          stage_id?: string | null;
+          updated_at?: string;
+          whatsapp_name?: string;
+        };
+        Update: {
+          clinic_id?: string;
+          created_at?: string;
+          estimated_value_cents?: number | null;
+          first_contact_at?: string;
+          id?: string;
+          last_contact_at?: string;
+          lost_reason_id?: string | null;
+          name?: string;
+          notes?: string;
+          opted_out_at?: string | null;
+          owner_id?: string | null;
+          phone?: string;
+          stage_changed_at?: string | null;
+          stage_id?: string | null;
+          updated_at?: string;
+          whatsapp_name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "contacts_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contacts_lost_reason_id_fkey";
+            columns: ["lost_reason_id"];
+            isOneToOne: false;
+            referencedRelation: "lost_reasons";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contacts_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contacts_stage_id_fkey";
+            columns: ["stage_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       conversations: {
         Row: {
           attendance_state: Database["public"]["Enums"]["attendance_state"];
           clinic_id: string;
           closed_at: string | null;
+          contact_id: string | null;
           contact_phone: string;
           contact_reason_id: string | null;
+          follow_up_id: number | null;
           id: number;
+          imported: boolean;
           last_message_at: string;
+          needs_classification: boolean;
           needs_human_at: string | null;
           started_at: string;
           status: Database["public"]["Enums"]["conversation_status"];
@@ -343,10 +681,14 @@ export type Database = {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
           clinic_id: string;
           closed_at?: string | null;
+          contact_id?: string | null;
           contact_phone: string;
           contact_reason_id?: string | null;
+          follow_up_id?: number | null;
           id?: never;
+          imported?: boolean;
           last_message_at?: string;
+          needs_classification?: boolean;
           needs_human_at?: string | null;
           started_at?: string;
           status?: Database["public"]["Enums"]["conversation_status"];
@@ -356,10 +698,14 @@ export type Database = {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
           clinic_id?: string;
           closed_at?: string | null;
+          contact_id?: string | null;
           contact_phone?: string;
           contact_reason_id?: string | null;
+          follow_up_id?: number | null;
           id?: never;
+          imported?: boolean;
           last_message_at?: string;
+          needs_classification?: boolean;
           needs_human_at?: string | null;
           started_at?: string;
           status?: Database["public"]["Enums"]["conversation_status"];
@@ -374,10 +720,24 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "conversations_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "conversations_contact_reason_id_fkey";
             columns: ["contact_reason_id"];
             isOneToOne: false;
             referencedRelation: "contact_reasons";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversations_follow_up_id_fkey";
+            columns: ["follow_up_id"];
+            isOneToOne: false;
+            referencedRelation: "follow_ups";
             referencedColumns: ["id"];
           },
         ];
@@ -411,6 +771,164 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      follow_ups: {
+        Row: {
+          attempt: number;
+          cancel_reason: string | null;
+          checked_at: string | null;
+          clinic_id: string;
+          contact_id: string;
+          conversation_id: number | null;
+          created_at: string;
+          created_by: string | null;
+          due_at: string;
+          failures: number;
+          id: number;
+          last_error: string | null;
+          note: string;
+          reason: string;
+          responded_at: string | null;
+          sent_at: string | null;
+          sent_conversation_id: number | null;
+          source: string;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempt?: number;
+          cancel_reason?: string | null;
+          checked_at?: string | null;
+          clinic_id: string;
+          contact_id: string;
+          conversation_id?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          due_at: string;
+          failures?: number;
+          id?: never;
+          last_error?: string | null;
+          note?: string;
+          reason?: string;
+          responded_at?: string | null;
+          sent_at?: string | null;
+          sent_conversation_id?: number | null;
+          source: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempt?: number;
+          cancel_reason?: string | null;
+          checked_at?: string | null;
+          clinic_id?: string;
+          contact_id?: string;
+          conversation_id?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          due_at?: string;
+          failures?: number;
+          id?: never;
+          last_error?: string | null;
+          note?: string;
+          reason?: string;
+          responded_at?: string | null;
+          sent_at?: string | null;
+          sent_conversation_id?: number | null;
+          source?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "follow_ups_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: true;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_sent_conversation_id_fkey";
+            columns: ["sent_conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      google_accounts: {
+        Row: {
+          clinic_id: string;
+          connected_by: string | null;
+          created_at: string;
+          email: string;
+          id: string;
+          last_error: string | null;
+          refresh_token_secret_id: string | null;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          connected_by?: string | null;
+          created_at?: string;
+          email: string;
+          id?: string;
+          last_error?: string | null;
+          refresh_token_secret_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          clinic_id?: string;
+          connected_by?: string | null;
+          created_at?: string;
+          email?: string;
+          id?: string;
+          last_error?: string | null;
+          refresh_token_secret_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "google_accounts_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "google_accounts_connected_by_fkey";
+            columns: ["connected_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -456,6 +974,9 @@ export type Database = {
           actions_config: Json | null;
           clinic_id: string;
           enabled: boolean;
+          google_account_id: string | null;
+          google_calendar_id: string | null;
+          google_calendar_name: string;
           mode: Database["public"]["Enums"]["integration_mode"];
           provider_name: string;
           reminder_hours_before: number;
@@ -467,6 +988,9 @@ export type Database = {
           actions_config?: Json | null;
           clinic_id: string;
           enabled?: boolean;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           mode?: Database["public"]["Enums"]["integration_mode"];
           provider_name?: string;
           reminder_hours_before?: number;
@@ -477,6 +1001,9 @@ export type Database = {
           actions_config?: Json | null;
           clinic_id?: string;
           enabled?: boolean;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           mode?: Database["public"]["Enums"]["integration_mode"];
           provider_name?: string;
           reminder_hours_before?: number;
@@ -491,6 +1018,109 @@ export type Database = {
             referencedRelation: "clinics";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "integrations_google_account_id_fkey";
+            columns: ["google_account_id"];
+            isOneToOne: false;
+            referencedRelation: "google_accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      lost_reasons: {
+        Row: {
+          clinic_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          sort_order: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          sort_order?: number;
+        };
+        Update: {
+          clinic_id?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          sort_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lost_reasons_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      message_templates: {
+        Row: {
+          body: string;
+          category: string;
+          clinic_id: string;
+          created_at: string;
+          example: NonNullable<Json>;
+          footer: string;
+          id: string;
+          language: string;
+          last_error: string | null;
+          meta_template_id: string | null;
+          name: string;
+          purpose: string;
+          rejected_reason: string | null;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          body: string;
+          category: string;
+          clinic_id: string;
+          created_at?: string;
+          example?: NonNullable<Json>;
+          footer?: string;
+          id?: string;
+          language?: string;
+          last_error?: string | null;
+          meta_template_id?: string | null;
+          name: string;
+          purpose?: string;
+          rejected_reason?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          category?: string;
+          clinic_id?: string;
+          created_at?: string;
+          example?: NonNullable<Json>;
+          footer?: string;
+          id?: string;
+          language?: string;
+          last_error?: string | null;
+          meta_template_id?: string | null;
+          name?: string;
+          purpose?: string;
+          rejected_reason?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
         ];
       };
       messages: {
@@ -501,6 +1131,7 @@ export type Database = {
           conversation_id: number;
           created_at: string;
           id: number;
+          origin: string;
           role: Database["public"]["Enums"]["message_role"];
           sent_by: string | null;
           sent_image_id: string | null;
@@ -514,6 +1145,7 @@ export type Database = {
           conversation_id: number;
           created_at?: string;
           id?: never;
+          origin?: string;
           role: Database["public"]["Enums"]["message_role"];
           sent_by?: string | null;
           sent_image_id?: string | null;
@@ -526,6 +1158,7 @@ export type Database = {
           conversation_id?: number;
           created_at?: string;
           id?: never;
+          origin?: string;
           role?: Database["public"]["Enums"]["message_role"];
           sent_by?: string | null;
           sent_image_id?: string | null;
@@ -598,6 +1231,48 @@ export type Database = {
           },
         ];
       };
+      pipeline_stages: {
+        Row: {
+          auto_rule: string | null;
+          clinic_id: string;
+          color: string;
+          created_at: string;
+          id: string;
+          kind: string;
+          name: string;
+          sort_order: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          auto_rule?: string | null;
+          clinic_id: string;
+          color?: string;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          name: string;
+          sort_order?: number;
+        };
+        Update: {
+          auto_rule?: string | null;
+          clinic_id?: string;
+          color?: string;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          name?: string;
+          sort_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       plans: {
         Row: {
           active: boolean;
@@ -641,6 +1316,9 @@ export type Database = {
       professionals: {
         Row: {
           clinic_id: string;
+          google_account_id: string | null;
+          google_calendar_id: string | null;
+          google_calendar_name: string;
           id: string;
           name: string;
           sort_order: number;
@@ -648,12 +1326,18 @@ export type Database = {
         ComputedFields: never;
         Insert: {
           clinic_id: string;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           id?: string;
           name: string;
           sort_order?: number;
         };
         Update: {
           clinic_id?: string;
+          google_account_id?: string | null;
+          google_calendar_id?: string | null;
+          google_calendar_name?: string;
           id?: string;
           name?: string;
           sort_order?: number;
@@ -664,6 +1348,13 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "professionals_google_account_id_fkey";
+            columns: ["google_account_id"];
+            isOneToOne: false;
+            referencedRelation: "google_accounts";
             referencedColumns: ["id"];
           },
         ];
@@ -795,6 +1486,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      add_history_progress: {
+        Args: { p_clinic_id: string; p_messages: number; p_progress: number };
+        Returns: undefined;
+      };
       admin_clinic_members: {
         Args: { p_clinic_id: string };
         Returns: {
@@ -831,6 +1526,10 @@ export type Database = {
           whatsapp_phone_number_id: string | null;
         }[];
       };
+      apply_stage_rule: {
+        Args: { p_contact_id: string; p_rule: string };
+        Returns: undefined;
+      };
       apply_subscription_payment: {
         Args: {
           p_amount_cents: number;
@@ -844,6 +1543,8 @@ export type Database = {
         Args: { p_clinic_id: string };
         Returns: {
           attendance_state: Database["public"]["Enums"]["attendance_state"];
+          contact_id: string | null;
+          contact_name: string | null;
           contact_phone: string;
           id: number;
           last_message: string | null;
@@ -865,6 +1566,22 @@ export type Database = {
         Returns: undefined;
       };
       dearmor: { Args: { "": string }; Returns: string };
+      due_follow_ups: {
+        Args: { p_limit: number };
+        Returns: {
+          attempt: number;
+          clinic_id: string;
+          contact_id: string;
+          contact_name: string | null;
+          conversation_id: number | null;
+          failures: number;
+          id: number;
+          opted_out_at: string | null;
+          phone: string;
+          reason: string;
+          source: string;
+        }[];
+      };
       due_reminders: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -877,15 +1594,31 @@ export type Database = {
           starts_at: string;
         }[];
       };
+      ensure_contact: {
+        Args: { p_clinic_id: string; p_name?: string; p_phone: string };
+        Returns: string;
+      };
+      funnel_stats: {
+        Args: { p_clinic_id: string; p_from: string; p_to: string };
+        Returns: Json;
+      };
       gen_random_uuid: { Args: Record<PropertyKey, never>; Returns: string };
       gen_salt: { Args: { "": string }; Returns: string };
       get_clinic_secret: {
         Args: { p_clinic_id: string; p_kind: string };
         Returns: string;
       };
+      get_google_refresh_token: {
+        Args: { p_account_id: string };
+        Returns: string;
+      };
       idle_conversations: {
         Args: { p_default_hours: number; p_limit: number };
         Returns: { clinic_id: string; id: number; last_message_at: string }[];
+      };
+      insights_dataset: {
+        Args: { p_clinic_id: string; p_from: string; p_to: string };
+        Returns: Json;
       };
       invoke_cron_route: { Args: { p_path: string }; Returns: number };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
@@ -895,20 +1628,45 @@ export type Database = {
         Args: { "": string };
         Returns: Record<string, unknown>[];
       };
+      potential_contacts: {
+        Args: { p_clinic_id: string; p_limit: number };
+        Returns: {
+          contact_id: string;
+          conversation_id: number;
+          conversations: number;
+          last_contact_at: string;
+          last_reason: string | null;
+          last_status: string;
+          last_summary: string | null;
+          name: string | null;
+          phone: string;
+          score: number;
+          stage_name: string | null;
+        }[];
+      };
       run_daily_cleanup: { Args: Record<PropertyKey, never>; Returns: Json };
+      seed_pipeline: { Args: { p_clinic_id: string }; Returns: undefined };
       set_clinic_secret: {
         Args: { p_clinic_id: string; p_kind: string; p_value: string };
         Returns: undefined;
       };
       set_cron_app_url: { Args: { p_url: string }; Returns: undefined };
+      set_google_refresh_token: {
+        Args: { p_account_id: string; p_token: string };
+        Returns: undefined;
+      };
       shares_clinic_with: { Args: { p_user_id: string }; Returns: boolean };
       storage_clinic_id: { Args: { p_name: string }; Returns: string };
+      unclassified_conversations: {
+        Args: { p_limit: number };
+        Returns: { clinic_id: string; id: number }[];
+      };
     };
     Enums: {
       appointment_status: "agendado" | "concluido" | "cancelado";
       attendance_state: "ia" | "pendente" | "equipe";
       conversation_status: "aberta" | "concluida" | "abandonada";
-      integration_mode: "webhook" | "custom";
+      integration_mode: "webhook" | "custom" | "google";
       member_role: "owner" | "staff";
       message_role: "user" | "model" | "staff";
       payment_status: "approved" | "rejected";
@@ -1043,7 +1801,7 @@ export const Constants = {
       appointment_status: ["agendado", "concluido", "cancelado"],
       attendance_state: ["ia", "pendente", "equipe"],
       conversation_status: ["aberta", "concluida", "abandonada"],
-      integration_mode: ["webhook", "custom"],
+      integration_mode: ["webhook", "custom", "google"],
       member_role: ["owner", "staff"],
       message_role: ["user", "model", "staff"],
       payment_status: ["approved", "rejected"],

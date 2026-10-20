@@ -281,7 +281,8 @@ async function Clinic({
               apiKeyStored={Boolean(secrets.agenda_api_key)}
               initial={{
                 providerName: integration?.provider_name ?? "",
-                mode: integration?.mode ?? "webhook",
+                // O Google Agenda é conectado pela própria clínica, no painel dela.
+                mode: integration?.mode === "custom" ? "custom" : "webhook",
                 webhookUrl: integration?.webhook_url ?? "",
                 actionsConfig: integration?.actions_config
                   ? JSON.stringify(integration.actions_config, null, 2)

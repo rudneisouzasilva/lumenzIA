@@ -11,6 +11,14 @@ senha e endereço dos jobs) a cada visita.
 
 - [ ] Rodar a migração `supabase/migrations/20261019000008_admin_whatsapp_launch.sql` no **SQL
       Editor** (cole o arquivo inteiro e clique em Run).
+- [ ] Fase 2: rodar, **nesta ordem e uma de cada vez**, as migrações:
+  1. `20261020000009_contacts_analytics_log.sql` (contatos e registro de 13 meses)
+  2. `20261020000010_whatsapp_coexistence.sql` (WhatsApp Business já existente)
+  3. `20261020000011_message_templates.sql` (mensagens prontas)
+  4. `20261020000012_follow_ups.sql` (retomadas; cria o job `lumenzia-retomadas`)
+  5. `20261020000013_pipeline.sql` (funil; cria o funil padrão de cada clínica)
+  6. `20261020000014_insights.sql` (indicadores e análise da IA)
+  7. `20261020000015_google_calendar.sql` (Google Agenda)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
@@ -83,8 +91,14 @@ Signup) da Meta. O token de cada clínica fica no Vault.
    `https://lumenzia.com.br/privacidade`, ícone e categoria.
 5. **WhatsApp → Configuration → Webhook**: Callback URL
    `https://lumenzia.com.br/api/webhooks/whatsapp` e o mesmo `WHATSAPP_VERIFY_TOKEN`. Assinar os
-   campos **messages** e **account_update** (o segundo avisa quando uma clínica remove a
-   LumenzIA da conta dela, e a conexão é desligada sozinha).
+   campos:
+   - **messages**;
+   - **account_update** (avisa quando uma clínica remove a LumenzIA da conta dela, e a conexão é
+     desligada sozinha);
+   - **message_template_status_update** (aprovação e recusa das mensagens prontas);
+   - **history**, **smb_app_state_sync** e **smb_message_echoes** (número que já usa o app
+     WhatsApp Business: histórico de 6 meses, contatos e mensagens que a equipe manda pelo
+     celular).
 6. **Facebook Login for Business → Configurations**: criar uma configuração do tipo
    **WhatsApp Embedded Signup**, com os ativos “WhatsApp accounts” e as permissões
    `whatsapp_business_management` e `whatsapp_business_messaging`.
@@ -106,10 +120,32 @@ Para cada clínica, depois que ela conectar:
 - [ ] A clínica cadastra uma forma de pagamento da Meta na conta do WhatsApp Business dela
       (WhatsApp Manager → Configurações de pagamento); as conversas são cobradas pela Meta direto
       dela.
-- [ ] Criar e aprovar, na conta do WhatsApp Business da clínica, os templates de lembrete
-      (`{{1}}` primeiro nome, `{{2}}` data e hora) e de aviso à equipe (`{{1}}` contato,
-      `{{2}}` mensagem), e preencher os nomes na aba **Templates** da clínica em /admin.
+- [ ] Conferir em **Mensagens prontas** (painel da clínica) que o pacote da LumenzIA foi enviado e
+      aprovado pela Meta. Ele é criado sozinho ao conectar; se algum ficar “Não enviada”, use
+      **Criar as mensagens da LumenzIA** de novo. Os nomes digitados na aba **Templates** em
+      /admin continuam valendo para quem já tinha.
 - [ ] Preencher o WhatsApp da equipe (aba **WhatsApp**) para os avisos de atendimento humano.
+
+## 5b. Google Agenda (cada clínica conecta a própria conta)
+
+1. Em [console.cloud.google.com](https://console.cloud.google.com), criar um projeto da LumenzIA
+   e ativar a **Google Calendar API** (APIs e serviços → Biblioteca).
+2. **Tela de consentimento OAuth** (Google Auth Platform): tipo **Externo**, nome LumenzIA, e-mail
+   de suporte, logotipo, domínio `lumenzia.com.br`, links da página inicial e da política de
+   privacidade. Escopos: `openid`, `email`, `.../auth/calendar.events`,
+   `.../auth/calendar.freebusy` e `.../auth/calendar.calendarlist.readonly`.
+3. **Clientes** → Criar cliente OAuth do tipo **Aplicativo da Web**, com o URI de
+   redirecionamento `https://lumenzia.com.br/api/google/callback` (e o da Vercel, se for testar
+   por lá).
+   - [ ] `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` na Vercel.
+4. **Verificação do Google**: os escopos da agenda são “sensíveis”. Enquanto o app não for
+   verificado, só os usuários de teste cadastrados na tela de consentimento conseguem conectar (até 100) e aparece um aviso de app não verificado. Pedir a verificação com um vídeo mostrando o
+   botão **Conectar com o Google** em /painel/agenda e o uso da agenda; costuma levar alguns dias.
+
+## 5c. Análise da IA
+
+- [ ] Opcional: `GEMINI_INSIGHTS_MODEL` na Vercel para usar outro modelo na análise mensal (padrão
+      `gemini-2.5-flash`). Usa a mesma `GEMINI_API_KEY`.
 
 ## 6. Conteúdo e jurídico
 

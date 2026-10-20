@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 
 import type { FormResult } from "@/lib/auth/validation";
@@ -9,7 +10,9 @@ import {
   connectWhatsapp,
   disconnectWhatsapp,
   embeddedSignupConfig,
+  retryHistorySync,
 } from "@/lib/whatsapp/embedded-signup";
+import { ensureTemplatePack } from "@/lib/whatsapp/templates";
 
 const metaId = z.string().regex(/^\d{5,30}$/);
 const connectSchema = z.object({
@@ -57,6 +60,16 @@ export async function connectWhatsappAction(
       ...parsed.data,
     });
     if (!result.ok) return result;
+    // As mensagens prontas vão para a aprovação da Meta logo depois, sem segurar a tela.
+    const clinicId = ctx.clinic.id;
+    after(async () => {
+      try {
+        const errors = await ensureTemplatePack(clinicId);
+        if (errors.length) console.warn("[templates]", errors.join(" | "));
+      } catch (e) {
+        console.error("[templates] pacote:", (e as Error).message);
+      }
+    });
     refresh();
     return { ok: true, warning: result.warning };
   } catch (e) {
@@ -82,6 +95,20 @@ export async function disconnectWhatsappAction(): Promise<FormResult> {
       ok: false,
       error: "Não foi possível desconectar agora. Tente de novo.",
     };
+  }
+  refresh();
+  return { ok: true };
+}
+
+export async function retryHistorySyncAction(): Promise<FormResult> {
+  const ctx = await ownerContext();
+  if ("error" in ctx) return { ok: false, error: ctx.error };
+  try {
+    const error = await retryHistorySync(ctx.clinic.id);
+    if (error) return { ok: false, error };
+  } catch (e) {
+    console.error("[whatsapp] histórico:", (e as Error).message);
+    return { ok: false, error: "Não foi possível pedir agora. Tente de novo." };
   }
   refresh();
   return { ok: true };

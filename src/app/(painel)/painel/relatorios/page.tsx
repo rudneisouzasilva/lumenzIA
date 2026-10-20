@@ -3,13 +3,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   BarChart3,
+  CalendarCheck,
   CalendarDays,
+  CalendarSync,
   CheckCircle2,
   Download,
   Hand,
   Headset,
   MessagesSquare,
   Sparkles,
+  Users,
   UserX,
 } from "lucide-react";
 
@@ -20,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { formatDateTime, formatPhone } from "@/lib/format";
 import { getPanelContext } from "@/lib/painel/context";
 import { parsePeriod, PRESETS } from "@/lib/painel/period";
+import { STAGE_COLOR_CLASS, type StageColor } from "@/lib/painel/pipeline";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Relatórios" };
@@ -37,6 +41,24 @@ type Stats = {
   contacts: number;
   by_reason: { reason: string; total: number }[];
   daily: { day: string; total: number }[];
+};
+
+type FunnelStats = {
+  new_contacts: number;
+  won: number;
+  lost: number;
+  open: number;
+  avg_hours_to_book: number | null;
+  by_stage: {
+    stage: string;
+    color: StageColor;
+    kind: string;
+    reached: number;
+    now: number;
+  }[];
+  by_reason: { reason: string; total: number; booked: number }[];
+  lost_reasons: { reason: string; total: number }[];
+  follow_ups: { sent: number; responded: number; booked: number };
 };
 
 type Params = Awaited<PageProps<"/painel/relatorios">["searchParams"]>;
@@ -70,25 +92,34 @@ async function Report({
     searchParams,
   ]);
   const period = parsePeriod(params);
-  const [{ data, error }, { data: upcoming }] = await Promise.all([
-    supabase.rpc("conversation_stats", {
-      p_clinic_id: clinic.id,
-      p_from: period.from,
-      p_to: period.to,
-    }),
-    supabase
-      .from("appointments")
-      .select(
-        "id, contact_phone, patient_name, procedure_name, professional_name, starts_at, reminder_sent_at",
-      )
-      .eq("clinic_id", clinic.id)
-      .eq("status", "agendado")
-      .gt("starts_at", new Date().toISOString())
-      .order("starts_at")
-      .limit(8),
-  ]);
+  const [{ data, error }, { data: funnelData }, { data: upcoming }] =
+    await Promise.all([
+      supabase.rpc("conversation_stats", {
+        p_clinic_id: clinic.id,
+        p_from: period.from,
+        p_to: period.to,
+      }),
+      supabase
+        .rpc("funnel_stats", {
+          p_clinic_id: clinic.id,
+          p_from: period.from,
+          p_to: period.to,
+        })
+        .throwOnError(),
+      supabase
+        .from("appointments")
+        .select(
+          "id, contact_phone, patient_name, procedure_name, professional_name, starts_at, reminder_sent_at",
+        )
+        .eq("clinic_id", clinic.id)
+        .eq("status", "agendado")
+        .gt("starts_at", new Date().toISOString())
+        .order("starts_at")
+        .limit(8),
+    ]);
   if (error) throw new Error(error.message);
   const stats = data as Stats;
+  const funnel = funnelData as FunnelStats;
 
   const finished = stats.concluida + stats.abandonada;
   const completion = finished
@@ -149,6 +180,8 @@ async function Report({
           highlight={stats.pending_now > 0}
         />
       </div>
+
+      <FunnelSection funnel={funnel} />
 
       <PanelCard
         title="Conversas por dia"
@@ -252,6 +285,157 @@ async function Report({
         </PanelCard>
       </div>
     </div>
+  );
+}
+
+const pct = (part: number, total: number) =>
+  total ? `${Math.round((part / total) * 100)}%` : "-";
+
+/** Do primeiro contato ao agendamento, para quem chamou a clínica pela primeira vez no período. */
+function FunnelSection({ funnel }: { funnel: FunnelStats }) {
+  const stages = funnel.by_stage.filter((s) => s.kind !== "perdido");
+  const top = Math.max(1, ...stages.map((s) => s.reached));
+  const hours = funnel.avg_hours_to_book;
+  const lostTotal = funnel.lost_reasons.reduce((n, r) => n + r.total, 0);
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Tile
+          icon={Users}
+          label="Contatos novos"
+          value={num(funnel.new_contacts)}
+          hint="chamaram pela primeira vez"
+        />
+        <Tile
+          icon={CalendarCheck}
+          label="Agendaram"
+          value={pct(funnel.won, funnel.new_contacts)}
+          hint={`${num(funnel.won)} de ${num(funnel.new_contacts)}${
+            hours !== null && funnel.won
+              ? ` · em ${hours < 48 ? `${Math.round(hours)} h` : `${Math.round(hours / 24)} dias`}, em média`
+              : ""
+          }`}
+        />
+        <Tile
+          icon={UserX}
+          label="Perdidos"
+          value={pct(funnel.lost, funnel.new_contacts)}
+          hint="perda marcada ou 30 dias sem falar"
+        />
+        <Tile
+          icon={CalendarSync}
+          label="Retomadas"
+          value={num(funnel.follow_ups.sent)}
+          hint={`${num(funnel.follow_ups.responded)} responderam · ${num(funnel.follow_ups.booked)} agendaram`}
+          href="/painel/retomadas"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <PanelCard
+          title="Funil"
+          description="Dos contatos novos do período, quantos chegaram a cada etapa."
+        >
+          {funnel.new_contacts ? (
+            <ul className="space-y-3">
+              {stages.map((s) => (
+                <li key={s.stage}>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="flex items-center gap-2 truncate">
+                      <span
+                        className={cn(
+                          "size-2.5 shrink-0 rounded-full",
+                          STAGE_COLOR_CLASS[s.color] ?? "bg-primary",
+                        )}
+                      />
+                      {s.stage}
+                    </span>
+                    <span className="shrink-0 font-medium tabular-nums">
+                      {num(s.reached)}
+                      <span className="ml-1.5 font-normal text-muted-foreground">
+                        {pct(s.reached, funnel.new_contacts)}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-2 rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        "h-2 rounded-full",
+                        STAGE_COLOR_CLASS[s.color] ?? "bg-primary",
+                      )}
+                      style={{ width: `${(s.reached / top) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty text="Nenhum contato novo neste período." />
+          )}
+          <p className="mt-5 text-xs text-muted-foreground">
+            <Link
+              href="/painel/funil"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Abrir o funil
+            </Link>{" "}
+            ·{" "}
+            <Link
+              href="/painel/oportunidades"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Contatos a fazer
+            </Link>
+          </p>
+        </PanelCard>
+
+        <PanelCard
+          title="Motivos que viram agendamento"
+          description="Conversas encerradas no período, pelo motivo, e quantas viraram agendamento em até 30 dias."
+        >
+          {funnel.by_reason.length ? (
+            <ul className="divide-y text-sm">
+              {funnel.by_reason.map((r) => (
+                <li
+                  key={r.reason}
+                  className="flex items-baseline justify-between gap-3 py-2 first:pt-0"
+                >
+                  <span className="truncate">{r.reason}</span>
+                  <span className="shrink-0 tabular-nums">
+                    <span className="font-medium">
+                      {pct(r.booked, r.total)}
+                    </span>
+                    <span className="ml-1.5 text-muted-foreground">
+                      {num(r.booked)} de {num(r.total)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty text="Nenhuma conversa encerrada neste período." />
+          )}
+          {funnel.lost_reasons.length > 0 && (
+            <div className="mt-5 border-t pt-4">
+              <p className="mb-2 text-sm font-medium">Por que perderam</p>
+              <ul className="space-y-1.5 text-sm">
+                {funnel.lost_reasons.map((r) => (
+                  <li
+                    key={r.reason}
+                    className="flex items-baseline justify-between gap-3"
+                  >
+                    <span className="truncate">{r.reason}</span>
+                    <span className="shrink-0 text-muted-foreground tabular-nums">
+                      {num(r.total)} · {pct(r.total, lostTotal)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </PanelCard>
+      </div>
+    </>
   );
 }
 

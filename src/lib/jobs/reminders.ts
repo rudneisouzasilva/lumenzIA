@@ -10,8 +10,9 @@ import {
 import { isoDateInBrasilia } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import { sendTemplate, type Sender } from "@/lib/whatsapp/client";
+import type { Sender } from "@/lib/whatsapp/client";
 import { getClinicSender } from "@/lib/whatsapp/sender";
+import { sendTemplateMessage, templateFor } from "@/lib/whatsapp/templates";
 
 import { listExternalAgenda } from "./agenda-sync";
 import { deadline } from "./cron";
@@ -35,8 +36,7 @@ type ClinicReady =
   | {
       ok: true;
       sender: Sender;
-      template: string;
-      language: string;
+      template: { name: string; language: string; body: string };
       integration: Integration;
     }
   | { ok: false; why: string };
@@ -50,7 +50,7 @@ async function prepareClinic(
     await Promise.all([
       admin
         .from("clinics")
-        .select("is_active, reminder_template_name, template_language")
+        .select("is_active")
         .eq("id", clinicId)
         .single()
         .throwOnError(),
@@ -69,8 +69,8 @@ async function prepareClinic(
         .throwOnError(),
     ]);
   if (!clinic.is_active) return { ok: false, why: "assistente pausada" };
-  if (!clinic.reminder_template_name)
-    return { ok: false, why: "sem template de lembrete configurado" };
+  const template = await templateFor(admin, clinicId, "lembrete");
+  if (!template) return { ok: false, why: "sem template de lembrete aprovado" };
   if (!pickActiveSubscription(subs as SubscriptionRow[]))
     return { ok: false, why: "assinatura vencida" };
   const sender = await getClinicSender(admin, clinicId);
@@ -78,8 +78,7 @@ async function prepareClinic(
   return {
     ok: true,
     sender,
-    template: clinic.reminder_template_name,
-    language: clinic.template_language,
+    template,
     integration,
   };
 }
@@ -129,11 +128,10 @@ async function remind(admin: Admin, ready: ClinicReady, appointment: Due) {
   // O template aprovado na Meta precisa ter 2 variáveis no corpo: {{1}} nome, {{2}} data e hora.
   const firstName = appointment.patient_name.trim().split(/\s+/)[0] || "você";
   try {
-    await sendTemplate(
+    await sendTemplateMessage(
       ready.sender,
       appointment.contact_phone,
       ready.template,
-      ready.language,
       [firstName, formatWhen(appointment.starts_at)],
     );
   } catch (e) {

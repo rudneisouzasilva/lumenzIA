@@ -5,6 +5,7 @@ import {
   handleWhatsappEvent,
   type WhatsappEvent,
 } from "@/lib/whatsapp/inbound";
+import { applyTemplateStatus } from "@/lib/whatsapp/templates";
 
 // A resposta à Meta sai na hora; a IA roda depois, dentro deste limite.
 export const maxDuration = 60;
@@ -54,6 +55,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
-  after(() => handleWhatsappEvent(body));
+  after(() => handleWhatsappEvent(body, applyTemplateStatus));
   return NextResponse.json({ ok: true });
 }

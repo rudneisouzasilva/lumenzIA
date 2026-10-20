@@ -3,10 +3,12 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_CONVERSATION_TIMEOUT_HOURS } from "@/lib/whatsapp/inbound";
 
-import { closeConversation } from "./close-conversation";
+import { classifyImported, closeConversation } from "./close-conversation";
 import { deadline } from "./cron";
 
 const BATCH = 40;
+// Conversas importadas do celular por rodada: o histórico de 6 meses entra aos poucos.
+const IMPORTED_BATCH = 15;
 // Se a IA estiver fora do ar por muito tempo, a conversa fecha sem motivo para não travar a fila.
 const GIVE_UP_AFTER_MS = 48 * 3600_000;
 
@@ -42,5 +44,26 @@ export async function runClassification(budgetMs: number) {
       );
     }
   }
-  return { found: idle.length, closed, failed };
+
+  // Com o tempo que sobrar, classifica algumas conversas importadas do histórico.
+  let imported = 0;
+  if (hasTime()) {
+    const { data: pending } = await admin
+      .rpc("unclassified_conversations", { p_limit: IMPORTED_BATCH })
+      .throwOnError();
+    for (const conversation of pending) {
+      if (!hasTime()) break;
+      try {
+        await classifyImported(admin, conversation);
+        imported++;
+      } catch (e) {
+        failed++;
+        console.error(
+          `[classificar] conversa importada ${conversation.id}:`,
+          (e as Error).message,
+        );
+      }
+    }
+  }
+  return { found: idle.length, closed, imported, failed };
 }

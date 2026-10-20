@@ -96,25 +96,32 @@ pago.
 Fica em `/painel` e só abre com a assinatura ativa (sem ela, a pessoa vai para `/assinatura`). Depois
 do primeiro pagamento, o botão "Configurar a assistente" leva ao passo a passo (`/painel/comecar`).
 
-| Tela                                  | O que a clínica configura                                        |
-| ------------------------------------- | ---------------------------------------------------------------- |
-| Visão geral                           | Progresso da configuração e liga/desliga a assistente            |
-| Conversas                             | Caixa de entrada ao vivo: assumir, responder, devolver, encerrar |
-| Relatórios                            | Indicadores, conversas por dia, motivos, agendamentos e CSV      |
-| Assistente                            | Nome, tom de voz, informações da clínica, regras e encerramento  |
-| Perguntas frequentes, Perguntas da IA | Listas com arrastar para reordenar                               |
-| Fotos                                 | Envio para o Storage (reduzidas para JPEG de até 1600 px)        |
-| Procedimentos, Profissionais, Motivos | Listas com arrastar para reordenar                               |
-| Horários                              | Dias, horário, feriados, outros fechamentos e lembrete           |
-| Conversas anteriores                  | Exemplos reais de atendimento                                    |
-| Testar assistente                     | Conversa de teste com a IA (nada é salvo nem enviado)            |
-| WhatsApp                              | Botão “Conectar WhatsApp” (Cadastro Incorporado da Meta)         |
-| Minha conta                           | Nome, WhatsApp, nome da clínica, equipe e troca de senha         |
+| Tela                                  | O que a clínica configura                                         |
+| ------------------------------------- | ----------------------------------------------------------------- |
+| Visão geral                           | Progresso da configuração e liga/desliga a assistente             |
+| Conversas                             | Caixa de entrada ao vivo: assumir, responder, devolver, encerrar  |
+| Funil                                 | Quadro comercial com as etapas da clínica (arrastar e soltar)     |
+| Mensagens prontas                     | Templates da Meta: pacote da LumenzIA e os da clínica             |
+| Retomadas                             | Quando voltar a chamar quem não agendou, e a lista de retomadas   |
+| Relatórios                            | Indicadores, funil, motivos que viram agendamento e CSV           |
+| Contatos a fazer                      | Quem mostrou interesse e não agendou, do mais promissor ao menos  |
+| Análise da IA                         | Leitura mensal dos últimos 12 meses, com o que fazer              |
+| Assistente                            | Nome, tom de voz, informações da clínica, regras e encerramento   |
+| Perguntas frequentes, Perguntas da IA | Listas com arrastar para reordenar                                |
+| Fotos                                 | Envio para o Storage (reduzidas para JPEG de até 1600 px)         |
+| Procedimentos, Profissionais, Motivos | Listas com arrastar para reordenar                                |
+| Horários                              | Dias, horário, feriados, outros fechamentos e lembrete            |
+| Agenda                                | Google Agenda: contas, agenda de cada profissional e liga/desliga |
+| Conversas anteriores                  | Exemplos reais de atendimento                                     |
+| Testar assistente                     | Conversa de teste com a IA (nada é salvo nem enviado)             |
+| WhatsApp                              | Botão “Conectar WhatsApp” (Cadastro Incorporado da Meta)          |
+| Minha conta                           | Nome, WhatsApp, nome da clínica, equipe e troca de senha          |
 
 Tudo é gravado por Server Actions (`src/app/(painel)/painel/actions.ts`) com o cliente do usuário,
 então o RLS confere a clínica de novo; a clínica vem sempre do login, nunca do navegador. A
 assistente só pode ser ligada depois que o número do WhatsApp for conectado. Ctrl+K
-abre a busca rápida.
+abre a busca rápida. Uma bolinha de chat no canto de todas as telas abre a caixa de entrada sem
+sair da página, inclusive para começar uma conversa nova com uma mensagem pronta.
 
 ## Motor da IA (WhatsApp + Gemini)
 
@@ -124,9 +131,13 @@ abre a busca rápida.
   `[[ESCALAR]]` para chamar a equipe.
 - `src/lib/ai/engine.ts` chama o Gemini (`@google/genai`, modelo em `GEMINI_MODEL`) e resolve as
   ferramentas de agenda em até 4 rodadas.
-- `src/lib/ai/agenda.ts` fala com a agenda da clínica: modo `webhook` (um POST para Zapier, Make
-  ou n8n) ou `custom` (molde por ação, com conta de serviço do Google opcional), e guarda uma cópia
-  local em `appointments`.
+- `src/lib/ai/agenda.ts` fala com a agenda da clínica: modo `google` (as contas do Google que a
+  clínica conectou em `/painel/agenda`, uma agenda por profissional, em `google-agenda.ts`),
+  `webhook` (um POST para Zapier, Make ou n8n) ou `custom` (molde por ação, com conta de serviço do
+  Google opcional), e guarda uma cópia local em `appointments`.
+- `src/lib/ai/follow-up.ts` é a ferramenta `agendar_retorno`: quando a pessoa pede para ser
+  procurada depois, a IA marca a retomada. A classificação ao encerrar também percebe a data.
+- A IA recebe os resumos das últimas conversas com a mesma pessoa, para dar continuidade.
 - `/api/webhooks/whatsapp` confere a assinatura da Meta (`META_APP_SECRET`), responde 200 na hora
   e processa depois com `after()`: guarda a mensagem (o id da Meta evita responder duas vezes),
   respeita "a equipe assumiu", a assinatura e a cota do plano, responde, envia a foto e escala para
@@ -134,7 +145,8 @@ abre a busca rápida.
 
 Para ligar no WhatsApp: crie o app na Meta, cadastre o webhook
 `https://<domínio>/api/webhooks/whatsapp` com o mesmo `WHATSAPP_VERIFY_TOKEN` e assine os campos
-`messages` e `account_update`. O passo a passo completo está em
+`messages`, `account_update`, `message_template_status_update`, `history`, `smb_app_state_sync` e
+`smb_message_echoes`. O passo a passo completo está em
 [docs/LANCAMENTO.md](docs/LANCAMENTO.md#5-whatsapp-app-da-lumenzia-na-meta-tech-provider).
 
 ### Conectar WhatsApp (Cadastro Incorporado)
@@ -156,6 +168,18 @@ número e a conta escolhidos (postMessage) e um `code` de uso único; o servidor
 “Desconectar” cancela a inscrição, apaga token e PIN e pausa a assistente. Se a clínica remover a
 LumenzIA pela Meta, o aviso `account_update`/`PARTNER_REMOVED` desliga a conexão sozinho.
 
+**Número que já usa o app WhatsApp Business (coexistência):** a opção “Já uso o WhatsApp Business
+no celular” abre o Cadastro Incorporado com `featureType: whatsapp_business_app_onboarding`. O
+número continua no celular; logo depois de conectar, o servidor pede à Meta os contatos e os 6
+meses de histórico (`smb_app_data`, só nas primeiras 24 horas). O histórico chega pelo campo
+`history` e vira conversas importadas (classificadas aos poucos pelo job); o que a equipe manda
+pelo celular chega por `smb_message_echoes` e entra na conversa como mensagem da equipe.
+
+**Mensagens prontas:** ao conectar, a LumenzIA cria na conta da clínica um pacote de templates
+(retomadas, continuar conversa, lembrete e aviso à equipe, em `src/lib/whatsapp/template-pack.ts`)
+e manda para a aprovação da Meta. O status volta pelo campo `message_template_status_update`. A
+clínica edita os textos e cria os dela em `/painel/mensagens`.
+
 ## Atendimento ao vivo e relatórios
 
 - `/painel/atendimento` mostra as conversas em andamento pelo Supabase Realtime (`conversations` e
@@ -165,22 +189,42 @@ LumenzIA pela Meta, o aviso `account_update`/`PARTNER_REMOVED` desliga a conexã
   assume. "Devolver para a IA" volta para `ia`. A resposta sai pelo número da clínica e grava
   quem enviou (`messages.sent_by`). Fora da janela de 24 horas do WhatsApp o envio é bloqueado.
 - "Encerrar" fecha na hora e a IA classifica motivo, desfecho e resumo (o mesmo do job).
-- `/painel/relatorios` lê `conversation_stats` (dias no horário de Brasília) e exporta CSV com
-  ponto e vírgula em `/painel/relatorios/exportar`.
+- `/painel/relatorios` lê `conversation_stats` e `funnel_stats` (dias no horário de Brasília) e
+  exporta CSV com ponto e vírgula em `/painel/relatorios/exportar`.
+
+## Contatos, funil, retomadas e análise (fase 2)
+
+- **Contatos** (`contacts`): uma linha por número, por clínica, criada sozinha na primeira
+  conversa ou agendamento. `appointment_log` guarda 13 meses de agendamentos só com o necessário
+  para os indicadores (sem nome nem telefone).
+- **Funil** (`pipeline_stages`, `lost_reasons`, `contact_stage_history`): um por clínica, com as
+  etapas padrão criadas junto com a clínica. As regras automáticas (novo contato, em conversa,
+  agendou, compareceu) só avançam o contato, e reativam quem estava perdido.
+- **Retomadas** (`follow_ups`): na data que a pessoa pediu, no prazo que a clínica escolheu para
+  conversas abandonadas ou concluídas sem agendamento, ou marcadas pela equipe. São canceladas
+  sozinhas se a pessoa escrever antes, agendar ou responder SAIR. O job `/api/cron/retomadas`
+  envia a mensagem pronta no expediente da clínica e a resposta cai numa conversa com a
+  assistente.
+- **Contatos a fazer**: `potential_contacts` lista quem conversou, não agendou e pode ser chamado.
+- **Análise da IA** (`ai_insights`): por botão, uma por clínica por mês, em todos os planos. A IA
+  (`GEMINI_INSIGHTS_MODEL`, padrão `gemini-2.5-flash` com mais raciocínio) lê `insights_dataset`:
+  12 meses de números e resumos, sem nome nem telefone.
 
 ## Jobs automáticos (pg_cron)
 
-A migração `20261019000007_attendance_reports_jobs.sql` agenda tudo no próprio Supabase:
+As migrações `20261019000007_attendance_reports_jobs.sql` e `20261020000012_follow_ups.sql` agendam
+tudo no próprio Supabase:
 
 | Job                     | Quando           | O que faz                                                                          |
 | ----------------------- | ---------------- | ---------------------------------------------------------------------------------- |
 | `lumenzia-lembretes`    | a cada 5 min     | `/api/cron/lembretes`: lembrete por template antes do horário                      |
 | `lumenzia-classificar`  | a cada 15 min    | `/api/cron/classificar`: encerra e classifica conversas paradas                    |
+| `lumenzia-retomadas`    | a cada 15 min    | `/api/cron/retomadas`: envia as retomadas do dia no expediente da clínica          |
 | `lumenzia-agenda`       | 06:00 (Brasília) | `/api/cron/agenda`: traz os agendamentos da agenda da clínica                      |
 | `lumenzia-limpeza`      | 06:30 (Brasília) | `run_daily_cleanup()`: conclui e apaga agendamentos antigos, auditoria de 12 meses |
 | `lumenzia-limpeza-cron` | 06:45 (Brasília) | apaga o histórico de execuções do pg_cron com mais de 7 dias                       |
 
-Os três primeiros chamam o site pelo `pg_net` com `Authorization: Bearer <senha>`. O endereço
+Os jobs com rota (`/api/cron/...`) chamam o site pelo `pg_net` com `Authorization: Bearer <senha>`. O endereço
 (`lumenzia_app_url`) e a senha (`lumenzia_cron_secret`, gerada pela migração) ficam no Vault, e
 a mesma senha vai na variável `CRON_SECRET` da Vercel. Para ver a senha, rode no SQL Editor:
 
@@ -241,3 +285,5 @@ outros: `npx shadcn@latest add <componente>`.
 6. Motor da IA: Gemini, agenda, webhook do WhatsApp
 7. Atendimento em tempo real e analytics
 8. Admin e produção: painel da equipe, Conectar WhatsApp e [checklist de lançamento](docs/LANCAMENTO.md)
+9. Fase 2: contatos, WhatsApp Business já existente, mensagens prontas e chat flutuante,
+   retomadas, funil, indicadores com análise da IA e Google Agenda por profissional

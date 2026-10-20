@@ -2,9 +2,11 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Building2 } from "lucide-react";
 
+import { ChatLauncher } from "@/components/painel/chat-launcher";
 import { PendingWatcher } from "@/components/painel/pending-watcher";
 import { PanelShell } from "@/components/painel/shell";
 import { getPanelContext } from "@/lib/painel/context";
+import { getInboxData } from "@/lib/painel/data";
 
 export const metadata: Metadata = {
   title: { default: "Painel", template: "%s · Painel LumenzIA" },
@@ -45,6 +47,11 @@ async function ClinicName() {
 }
 
 async function Watcher() {
-  const { clinic } = await getPanelContext();
-  return <PendingWatcher clinicId={clinic.id} />;
+  const data = await getInboxData();
+  return (
+    <>
+      <PendingWatcher clinicId={data.clinicId} />
+      <ChatLauncher {...data} />
+    </>
+  );
 }

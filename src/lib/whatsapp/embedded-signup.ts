@@ -4,6 +4,8 @@ import { randomInt } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { graph, GraphError, graphVersion } from "./graph";
+
 /**
  * "Conectar WhatsApp" (Cadastro Incorporado da Meta, modelo Tech Provider)
  * -----------------------------------------------------------------------
@@ -18,52 +20,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * guarda o token no Vault da clínica.
  */
 
-const GRAPH = "https://graph.facebook.com";
-
-export function graphVersion() {
-  return process.env.WHATSAPP_API_VERSION?.trim() || "v21.0";
-}
-
 /** O que o navegador precisa para abrir a janela da Meta (nada disso é segredo). */
 export function embeddedSignupConfig() {
   const appId = process.env.META_APP_ID?.trim();
   const configId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID?.trim();
   if (!appId || !configId || !process.env.META_APP_SECRET?.trim()) return null;
   return { appId, configId, graphVersion: graphVersion() };
-}
-
-export class GraphError extends Error {
-  constructor(
-    message: string,
-    readonly code?: number,
-  ) {
-    super(message);
-  }
-}
-
-async function graph<T>(
-  path: string,
-  init: { method?: string; token?: string; body?: unknown } = {},
-): Promise<T> {
-  const res = await fetch(`${GRAPH}/${graphVersion()}/${path}`, {
-    method: init.method ?? "GET",
-    headers: {
-      ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}),
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: init.body ? JSON.stringify(init.body) : undefined,
-    signal: AbortSignal.timeout(15_000),
-  });
-  const json = (await res.json().catch(() => ({}))) as {
-    error?: { message?: string; code?: number };
-  } & T;
-  if (!res.ok || json.error) {
-    throw new GraphError(
-      json.error?.message ?? `Graph API ${res.status}`,
-      json.error?.code,
-    );
-  }
-  return json;
 }
 
 /** Troca o `code` do FB.login pelo token da integração (não expira). */
@@ -202,6 +164,12 @@ export async function connectWhatsapp(
       whatsapp_display_phone: phone.display_phone_number ?? null,
       whatsapp_verified_name: phone.verified_name ?? null,
       whatsapp_connected_at: new Date().toISOString(),
+      whatsapp_coexistence: input.coexistence,
+      whatsapp_history_status: input.coexistence
+        ? "aguardando"
+        : "nao_solicitado",
+      whatsapp_history_progress: 0,
+      whatsapp_history_messages: 0,
     })
     .eq("id", input.clinicId);
   if (error?.code === "23505") {
@@ -212,6 +180,19 @@ export async function connectWhatsapp(
     };
   }
   if (error) throw new Error(error.message);
+
+  // Coexistência: pede à Meta os contatos e o histórico do app (só vale nas primeiras 24 horas).
+  if (
+    input.coexistence &&
+    !(await requestAppSync(input.phoneNumberId, token))
+  ) {
+    await admin
+      .from("clinics")
+      .update({ whatsapp_history_status: "erro" })
+      .eq("id", input.clinicId);
+    warning ??=
+      "O número foi conectado, mas a Meta não liberou o histórico do celular agora. Tente de novo na tela do WhatsApp.";
+  }
 
   await admin.from("admin_audit_log").insert({
     admin_id: input.userId,
@@ -226,6 +207,80 @@ export async function connectWhatsapp(
     verifiedName: phone.verified_name ?? null,
     warning,
   };
+}
+
+/**
+ * Pede à Meta, na coexistência, a sincronização dos contatos do app e depois do histórico de
+ * conversas. Os dados chegam pelo webhook (campos smb_app_state_sync e history). A Meta só aceita
+ * nas primeiras 24 horas depois da conexão.
+ */
+async function requestAppSync(phoneNumberId: string, token: string) {
+  try {
+    for (const syncType of ["smb_app_state_sync", "history"]) {
+      await graph(`${encodeURIComponent(phoneNumberId)}/smb_app_data`, {
+        method: "POST",
+        token,
+        body: { messaging_product: "whatsapp", sync_type: syncType },
+      });
+    }
+    return true;
+  } catch (e) {
+    console.error("[whatsapp] sincronizar o app:", (e as Error).message);
+    return false;
+  }
+}
+
+/** Janela que a Meta dá para pedir o histórico do app depois da conexão. */
+export const HISTORY_SYNC_WINDOW_MS = 24 * 3600_000;
+
+/** O botão "pedir de novo" aparece só depois de uma falha, dentro da janela da Meta. */
+export function historyRetryAllowed(
+  status: string,
+  connectedAt: string | null,
+  now = Date.now(),
+) {
+  return (
+    status === "erro" &&
+    Boolean(connectedAt) &&
+    now - Date.parse(connectedAt!) < HISTORY_SYNC_WINDOW_MS
+  );
+}
+
+/** Tenta de novo pedir o histórico do celular (botão na tela do WhatsApp). */
+export async function retryHistorySync(clinicId: string) {
+  const admin = createAdminClient();
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select(
+      "whatsapp_phone_number_id, whatsapp_coexistence, whatsapp_connected_at",
+    )
+    .eq("id", clinicId)
+    .single()
+    .throwOnError();
+  if (!clinic.whatsapp_phone_number_id || !clinic.whatsapp_coexistence) {
+    return "O histórico só existe para números que continuam no app WhatsApp Business.";
+  }
+  if (
+    !clinic.whatsapp_connected_at ||
+    Date.now() - Date.parse(clinic.whatsapp_connected_at) >
+      HISTORY_SYNC_WINDOW_MS
+  ) {
+    return "A Meta só libera o histórico nas primeiras 24 horas depois da conexão.";
+  }
+  const { data: token } = await admin.rpc("get_clinic_secret", {
+    p_clinic_id: clinicId,
+    p_kind: "whatsapp_token",
+  });
+  if (!token) return "O WhatsApp da clínica não está conectado.";
+  if (!(await requestAppSync(clinic.whatsapp_phone_number_id, token))) {
+    return "A Meta recusou o pedido agora. Tente de novo em alguns minutos.";
+  }
+  await admin
+    .from("clinics")
+    .update({ whatsapp_history_status: "aguardando" })
+    .eq("id", clinicId)
+    .throwOnError();
+  return null;
 }
 
 /**
@@ -284,6 +339,9 @@ async function clearWhatsapp(clinicId: string) {
       whatsapp_display_phone: null,
       whatsapp_verified_name: null,
       whatsapp_connected_at: null,
+      whatsapp_coexistence: false,
+      whatsapp_history_status: "nao_solicitado",
+      whatsapp_history_progress: 0,
       is_active: false,
     })
     .eq("id", clinicId)

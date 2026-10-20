@@ -62,3 +62,10 @@ export function formatRelative(value: string | Date, now = Date.now()) {
 export function isoDateInBrasilia(date: Date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(date);
 }
+
+/** "(41) 99999-0000" → "5541999990000". Sem o código do país, considera Brasil. */
+export function normalizePhone(raw: string) {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return /^\d{12,15}$/.test(digits) ? digits : null;
+}

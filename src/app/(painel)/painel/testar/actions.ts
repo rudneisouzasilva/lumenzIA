@@ -53,6 +53,7 @@ export async function testAssistant(input: unknown): Promise<TestReply> {
       history: [...history.slice(-20), { role: "user", text: message }],
       sentImageIds,
       agenda: integration?.enabled ? { kind: "simulate" } : null,
+      followUp: { kind: "simulate" },
     });
     return {
       ok: true,
