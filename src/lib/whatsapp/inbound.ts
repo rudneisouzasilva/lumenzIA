@@ -11,6 +11,7 @@ import {
   pickActiveSubscription,
   type SubscriptionRow,
 } from "@/lib/billing/subscription";
+import { formatDate } from "@/lib/format";
 import { publicImageUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -37,6 +38,11 @@ import { sendTemplateMessage, templateFor } from "./templates";
 export { DEFAULT_CONVERSATION_TIMEOUT_HOURS } from "./conversations";
 
 const HISTORY_SIZE = 20;
+// Resumos das últimas conversas com a mesma pessoa, para a IA dar continuidade.
+const PREVIOUS_SUMMARIES = 3;
+// A mensagem inteira, sem mais nada: "SAIR", "parar", "stop"...
+const OPT_OUT =
+  /^(sair|parar|stop|pare|descadastrar|cancelar inscri[cç][aã]o)[.!]*$/i;
 
 type Admin = SupabaseClient<Database>;
 
@@ -378,6 +384,11 @@ async function processMessage(
     .eq("id", conversation.id)
     .throwOnError();
 
+  if (OPT_OUT.test(body.trim()) && conversation.contact_id) {
+    await optOut(admin, clinic, gate.sender, conversation, from);
+    return;
+  }
+
   // Assistente pausada, sem assinatura ou sem cota: a mensagem fica no painel para a equipe.
   if (!gate.ok) return;
   // Alguém da equipe assumiu a conversa: a IA fica quieta até devolverem para ela.
@@ -395,16 +406,30 @@ async function processMessage(
 
   let reply;
   try {
-    const [{ integration, ...context }, history, sentImageIds] =
-      await Promise.all([
-        loadAssistantContext(admin, clinic.id),
-        loadHistory(admin, conversation.id),
-        loadSentImageIds(admin, conversation.id),
-      ]);
+    const [
+      { integration, ...context },
+      history,
+      sentImageIds,
+      previousSummaries,
+    ] = await Promise.all([
+      loadAssistantContext(admin, clinic.id),
+      loadHistory(admin, conversation.id),
+      loadSentImageIds(admin, conversation.id),
+      loadPreviousSummaries(admin, conversation),
+    ]);
     reply = await generateReply({
       context,
       history,
       sentImageIds,
+      previousSummaries,
+      followUp: conversation.contact_id
+        ? {
+            kind: "live",
+            clinicId: clinic.id,
+            contactId: conversation.contact_id,
+            conversationId: conversation.id,
+          }
+        : null,
       agenda: integration?.enabled
         ? {
             kind: "live",
@@ -460,6 +485,60 @@ async function processMessage(
   if (reply.needsHuman) {
     await escalateToStaff(admin, clinic, sender, conversation.id, from, body);
   }
+}
+
+/**
+ * A pessoa pediu para não receber mais mensagens: registra no contato (cancela as retomadas) e
+ * confirma uma vez. Ela continua podendo escrever para a clínica normalmente.
+ */
+async function optOut(
+  admin: Admin,
+  clinic: InboundClinic,
+  sender: Sender | null,
+  conversation: { id: number; contact_id: string | null },
+  from: string,
+) {
+  const { data: changed } = await admin
+    .from("contacts")
+    .update({ opted_out_at: new Date().toISOString() })
+    .eq("id", conversation.contact_id!)
+    .is("opted_out_at", null)
+    .select("id")
+    .throwOnError();
+  if (!changed.length || !sender) return;
+
+  const text =
+    "Tudo certo, você não vai mais receber nossas mensagens automáticas. Se quiser falar com a clínica, é só escrever por aqui.";
+  await sendText(sender, from, text);
+  await admin
+    .from("messages")
+    .insert({
+      clinic_id: clinic.id,
+      conversation_id: conversation.id,
+      contact_phone: from,
+      role: "model",
+      content: text,
+    })
+    .throwOnError();
+}
+
+/** Os resumos das últimas conversas encerradas com o mesmo contato, da mais nova para a mais antiga. */
+async function loadPreviousSummaries(
+  admin: Admin,
+  conversation: { id: number; contact_id: string | null },
+) {
+  if (!conversation.contact_id) return [];
+  const { data } = await admin
+    .from("conversations")
+    .select("summary, last_message_at")
+    .eq("contact_id", conversation.contact_id)
+    .neq("id", conversation.id)
+    .neq("status", "aberta")
+    .not("summary", "is", null)
+    .order("last_message_at", { ascending: false })
+    .limit(PREVIOUS_SUMMARIES)
+    .throwOnError();
+  return data.map((c) => `${formatDate(c.last_message_at)}: ${c.summary}`);
 }
 
 /** Guarda o nome do perfil de WhatsApp no contato (só quando mudou). */

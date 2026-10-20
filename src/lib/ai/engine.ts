@@ -5,6 +5,7 @@ import {
   GoogleGenAI,
   ThinkingLevel,
   type Content,
+  type FunctionDeclaration,
   type GenerateContentConfig,
   type Part,
 } from "@google/genai";
@@ -19,6 +20,11 @@ import {
   type AgendaResult,
   type Integration,
 } from "./agenda";
+import {
+  callFollowUpTool,
+  FOLLOW_UP_TOOL,
+  type FollowUpMode,
+} from "./follow-up";
 import { buildSystemPrompt, parseReply, type AssistantContext } from "./prompt";
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
@@ -34,6 +40,8 @@ export type ToolCall = {
   args: Record<string, unknown>;
   result: AgendaResult;
 };
+
+export type { FollowUpMode };
 
 /**
  * Agenda: "live" chama o sistema da clínica, "simulate" só mostra o que seria enviado (aba
@@ -163,7 +171,7 @@ function thinkingConfig(
 async function generate(
   contents: Content[],
   systemInstruction: string,
-  withTools: boolean,
+  tools: FunctionDeclaration[],
 ) {
   const model = geminiModel();
   try {
@@ -175,7 +183,7 @@ async function generate(
         temperature: 0.6,
         maxOutputTokens: 1024,
         thinkingConfig: thinkingConfig(model),
-        tools: withTools ? [{ functionDeclarations: AGENDA_TOOLS }] : undefined,
+        tools: tools.length ? [{ functionDeclarations: tools }] : undefined,
       },
     });
     const usage = response.usageMetadata;
@@ -194,24 +202,35 @@ async function generate(
 }
 
 /**
- * Gera a resposta da assistente. `history` termina com a mensagem do paciente. Quando a agenda
- * está ligada, resolve as chamadas de ferramenta (até 4 rodadas) antes do texto final.
+ * Gera a resposta da assistente. `history` termina com a mensagem do paciente. Resolve as
+ * chamadas de ferramenta (agenda e retorno combinado, até 4 rodadas) antes do texto final.
+ * `previousSummaries` são os resumos das últimas conversas com a mesma pessoa.
  */
 export async function generateReply({
   context,
   history,
   agenda,
+  followUp = null,
   sentImageIds = [],
+  previousSummaries = [],
 }: {
   context: AssistantContext;
   history: ChatTurn[];
   agenda: AgendaMode;
+  followUp?: FollowUpMode;
   sentImageIds?: string[];
+  previousSummaries?: string[];
 }) {
   const system = buildSystemPrompt(context, {
     agendaEnabled: agenda !== null,
+    followUpEnabled: followUp !== null,
     sentImageIds,
+    previousSummaries,
   });
+  const tools: FunctionDeclaration[] = [
+    ...(agenda ? AGENDA_TOOLS : []),
+    ...(followUp ? [FOLLOW_UP_TOOL] : []),
+  ];
   const contents: Content[] = history
     .filter((m) => m.text.trim())
     .map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
@@ -221,10 +240,10 @@ export async function generateReply({
   const toolCalls: ToolCall[] = [];
   let raw = "";
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await generate(contents, system, agenda !== null);
+    const response = await generate(contents, system, tools);
     const parts = response.candidates?.[0]?.content?.parts ?? [];
     const calls = parts.filter((p) => p.functionCall);
-    if (!calls.length || !agenda) {
+    if (!calls.length || !tools.length) {
       raw = parts
         .filter((p) => p.text && !p.thought)
         .map((p) => p.text)
@@ -238,19 +257,25 @@ export async function generateReply({
     for (const { functionCall } of calls) {
       const name = functionCall!.name ?? "";
       const args = { ...(functionCall!.args ?? {}) };
-      if (agenda.kind === "live" && !args.telefone) {
-        args.telefone = agenda.contactPhone;
+      let result: AgendaResult;
+      if (name === FOLLOW_UP_TOOL.name) {
+        result = followUp
+          ? await callFollowUpTool(followUp, args)
+          : { erro: "Ferramenta indisponível." };
+      } else if (!agenda) {
+        result = { erro: "A agenda não está conectada nesta clínica." };
+      } else if (agenda.kind === "live") {
+        if (!args.telefone) args.telefone = agenda.contactPhone;
+        result = await callAgenda(
+          agenda.integration,
+          context.services,
+          name,
+          args,
+          agenda.conversationId,
+        );
+      } else {
+        result = simulateAgenda(name, args);
       }
-      const result =
-        agenda.kind === "live"
-          ? await callAgenda(
-              agenda.integration,
-              context.services,
-              name,
-              args,
-              agenda.conversationId,
-            )
-          : simulateAgenda(name, args);
       toolCalls.push({ name, args, result });
       responses.push({
         functionResponse: { id: functionCall!.id, name, response: result },
@@ -272,6 +297,10 @@ export type Classification = {
   reason: string | null;
   status: "concluida" | "abandonada";
   summary: string;
+  /** Dia que a própria pessoa pediu para ser procurada de novo (AAAA-MM-DD), se pediu. */
+  followUpDate: string | null;
+  /** O interesse principal, em poucas palavras ("avaliação de botox"). */
+  topic: string;
 };
 
 /**
@@ -282,9 +311,12 @@ export type Classification = {
 export async function classifyConversation({
   reasons,
   messages,
+  today,
 }: {
   reasons: { name: string; description: string }[];
   messages: { role: "user" | "model" | "staff"; content: string }[];
+  /** Hoje em Brasília (AAAA-MM-DD), para entender "semana que vem". */
+  today: string;
 }): Promise<Classification> {
   const who = { user: "Paciente", model: "Assistente", staff: "Equipe" };
   const transcript = messages
@@ -310,6 +342,9 @@ export async function classifyConversation({
     "",
     "O resumo tem até 20 palavras, em português.",
     "",
+    `Hoje é ${today}. Em "retorno", se o paciente pediu para a clínica procurá-lo de novo mais tarde ("me chama mês que vem", "depois do dia 10 eu vejo"), informe o dia no formato AAAA-MM-DD (para um período, o primeiro dia útil dele); senão, null.`,
+    'Em "assunto", o interesse principal do paciente em até 6 palavras (ex.: "avaliação de botox"), ou "" se não houver.',
+    "",
     "Conversa:",
     transcript,
   ].join("\n");
@@ -322,7 +357,7 @@ export async function classifyConversation({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         temperature: 0,
-        maxOutputTokens: 256,
+        maxOutputTokens: 320,
         thinkingConfig: thinkingConfig(model),
         responseMimeType: "application/json",
         responseJsonSchema: {
@@ -331,8 +366,10 @@ export async function classifyConversation({
             motivo: { type: ["string", "null"] },
             status: { type: "string", enum: ["concluida", "abandonada"] },
             resumo: { type: "string" },
+            retorno: { type: ["string", "null"] },
+            assunto: { type: "string" },
           },
-          required: ["motivo", "status", "resumo"],
+          required: ["motivo", "status", "resumo", "retorno", "assunto"],
         },
       },
     });
@@ -344,7 +381,13 @@ export async function classifyConversation({
     throw new AiError("Não foi possível classificar a conversa agora.");
   }
 
-  let parsed: { motivo?: unknown; status?: unknown; resumo?: unknown };
+  let parsed: {
+    motivo?: unknown;
+    status?: unknown;
+    resumo?: unknown;
+    retorno?: unknown;
+    assunto?: unknown;
+  };
   try {
     parsed = JSON.parse(text);
   } catch {
@@ -362,5 +405,13 @@ export async function classifyConversation({
     reason,
     status: parsed.status,
     summary: String(parsed.resumo ?? "").slice(0, 500),
+    followUpDate:
+      typeof parsed.retorno === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(parsed.retorno)
+        ? parsed.retorno
+        : null,
+    topic: String(parsed.assunto ?? "")
+      .trim()
+      .slice(0, 80),
   };
 }

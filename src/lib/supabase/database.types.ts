@@ -312,6 +312,9 @@ export type Database = {
           conversation_timeout_hours: number | null;
           created_at: string;
           extra_closed_dates: string;
+          followup_abandoned_days: number | null;
+          followup_concluded_days: number | null;
+          followup_max_attempts: number;
           id: string;
           is_active: boolean;
           name: string;
@@ -344,6 +347,9 @@ export type Database = {
           conversation_timeout_hours?: number | null;
           created_at?: string;
           extra_closed_dates?: string;
+          followup_abandoned_days?: number | null;
+          followup_concluded_days?: number | null;
+          followup_max_attempts?: number;
           id?: string;
           is_active?: boolean;
           name: string;
@@ -375,6 +381,9 @@ export type Database = {
           conversation_timeout_hours?: number | null;
           created_at?: string;
           extra_closed_dates?: string;
+          followup_abandoned_days?: number | null;
+          followup_concluded_days?: number | null;
+          followup_max_attempts?: number;
           id?: string;
           is_active?: boolean;
           name?: string;
@@ -490,6 +499,7 @@ export type Database = {
           contact_id: string | null;
           contact_phone: string;
           contact_reason_id: string | null;
+          follow_up_id: number | null;
           id: number;
           imported: boolean;
           last_message_at: string;
@@ -507,6 +517,7 @@ export type Database = {
           contact_id?: string | null;
           contact_phone: string;
           contact_reason_id?: string | null;
+          follow_up_id?: number | null;
           id?: never;
           imported?: boolean;
           last_message_at?: string;
@@ -523,6 +534,7 @@ export type Database = {
           contact_id?: string | null;
           contact_phone?: string;
           contact_reason_id?: string | null;
+          follow_up_id?: number | null;
           id?: never;
           imported?: boolean;
           last_message_at?: string;
@@ -552,6 +564,13 @@ export type Database = {
             columns: ["contact_reason_id"];
             isOneToOne: false;
             referencedRelation: "contact_reasons";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversations_follow_up_id_fkey";
+            columns: ["follow_up_id"];
+            isOneToOne: false;
+            referencedRelation: "follow_ups";
             referencedColumns: ["id"];
           },
         ];
@@ -585,6 +604,109 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      follow_ups: {
+        Row: {
+          attempt: number;
+          cancel_reason: string | null;
+          clinic_id: string;
+          contact_id: string;
+          conversation_id: number | null;
+          created_at: string;
+          created_by: string | null;
+          due_at: string;
+          failures: number;
+          id: number;
+          last_error: string | null;
+          note: string;
+          reason: string;
+          responded_at: string | null;
+          sent_at: string | null;
+          sent_conversation_id: number | null;
+          source: string;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempt?: number;
+          cancel_reason?: string | null;
+          clinic_id: string;
+          contact_id: string;
+          conversation_id?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          due_at: string;
+          failures?: number;
+          id?: never;
+          last_error?: string | null;
+          note?: string;
+          reason?: string;
+          responded_at?: string | null;
+          sent_at?: string | null;
+          sent_conversation_id?: number | null;
+          source: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempt?: number;
+          cancel_reason?: string | null;
+          clinic_id?: string;
+          contact_id?: string;
+          conversation_id?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          due_at?: string;
+          failures?: number;
+          id?: never;
+          last_error?: string | null;
+          note?: string;
+          reason?: string;
+          responded_at?: string | null;
+          sent_at?: string | null;
+          sent_conversation_id?: number | null;
+          source?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "follow_ups_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: true;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follow_ups_sent_conversation_id_fkey";
+            columns: ["sent_conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
             referencedColumns: ["id"];
           },
         ];
@@ -1111,6 +1233,22 @@ export type Database = {
         Returns: undefined;
       };
       dearmor: { Args: { "": string }; Returns: string };
+      due_follow_ups: {
+        Args: { p_limit: number };
+        Returns: {
+          attempt: number;
+          clinic_id: string;
+          contact_id: string;
+          contact_name: string | null;
+          conversation_id: number | null;
+          failures: number;
+          id: number;
+          opted_out_at: string | null;
+          phone: string;
+          reason: string;
+          source: string;
+        }[];
+      };
       due_reminders: {
         Args: Record<PropertyKey, never>;
         Returns: {

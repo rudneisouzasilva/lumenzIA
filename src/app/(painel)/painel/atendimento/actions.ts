@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { normalizePhone } from "@/lib/format";
 import { closeConversation } from "@/lib/jobs/close-conversation";
 import { getActionContext } from "@/lib/painel/context";
 import { publicImageUrl } from "@/lib/storage";
@@ -350,11 +351,4 @@ export async function sendTemplateToContact(
       error: "A mensagem foi enviada, mas não apareceu no painel.",
     };
   }
-}
-
-/** "(41) 99999-0000" → "5541999990000". Sem o código do país, considera Brasil. */
-function normalizePhone(raw: string) {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
-  return /^\d{12,15}$/.test(digits) ? digits : null;
 }

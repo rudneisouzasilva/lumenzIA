@@ -3,6 +3,12 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { AiError, classifyConversation } from "@/lib/ai/engine";
+import {
+  brasiliaDatePlus,
+  checkFollowUpDate,
+  setPendingFollowUp,
+} from "@/lib/ai/follow-up";
+import { isoDateInBrasilia } from "@/lib/format";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Admin = SupabaseClient<Database>;
@@ -39,6 +45,14 @@ async function otherReasonId(admin: Admin, clinicId: string) {
 
 type Values = Database["public"]["Tables"]["conversations"]["Update"];
 
+type Classified = {
+  values: Values;
+  /** O paciente escreveu alguma coisa. */
+  answered: boolean;
+  followUpDate: string | null;
+  topic: string;
+};
+
 /**
  * Motivo, desfecho e resumo de uma conversa, pela IA. Sem nenhuma mensagem do paciente não há o
  * que classificar: fica "abandonada", sem gastar a IA.
@@ -46,7 +60,7 @@ type Values = Database["public"]["Tables"]["conversations"]["Update"];
 async function classify(
   admin: Admin,
   conversation: { id: number; clinic_id: string },
-): Promise<Values> {
+): Promise<Classified> {
   const [{ data: messages }, { data: reasons }] = await Promise.all([
     admin
       .from("messages")
@@ -61,17 +75,140 @@ async function classify(
       .order("sort_order")
       .throwOnError(),
   ]);
-  if (!messages.some((m) => m.role === "user")) return { status: "abandonada" };
+  if (!messages.some((m) => m.role === "user")) {
+    return {
+      values: { status: "abandonada" },
+      answered: false,
+      followUpDate: null,
+      topic: "",
+    };
+  }
 
-  const result = await classifyConversation({ reasons, messages });
+  const result = await classifyConversation({
+    reasons,
+    messages,
+    today: isoDateInBrasilia(),
+  });
   const reasonId = result.reason
     ? reasons.find((r) => r.name === result.reason)!.id
     : await otherReasonId(admin, conversation.clinic_id);
   return {
-    status: result.status,
-    contact_reason_id: reasonId,
-    summary: result.summary || null,
+    values: {
+      status: result.status,
+      contact_reason_id: reasonId,
+      summary: result.summary || null,
+    },
+    answered: true,
+    followUpDate: result.followUpDate,
+    topic: result.topic,
   };
+}
+
+/**
+ * Depois de encerrar: marca a retomada, se a clínica quiser. Na ordem:
+ *  1. quem pediu para não receber mensagens, ou já tem retomada marcada, fica como está;
+ *  2. quem agendou não precisa de retomada;
+ *  3. a data pedida pela própria pessoa vence o padrão da clínica;
+ *  4. uma retomada que ficou sem resposta tenta de novo, até o limite de tentativas;
+ *  5. senão, o prazo padrão da clínica para abandonadas ou concluídas sem agendamento.
+ */
+async function planFollowUp(
+  admin: Admin,
+  conversationId: number,
+  classified: Classified,
+) {
+  const { data: conversation } = await admin
+    .from("conversations")
+    .select(
+      "id, clinic_id, contact_id, status, follow_up_id, clinics(followup_abandoned_days, followup_concluded_days, followup_max_attempts), contacts(opted_out_at)",
+    )
+    .eq("id", conversationId)
+    .single()
+    .throwOnError();
+  const contactId = conversation.contact_id;
+  const clinic = conversation.clinics;
+  if (!contactId || !clinic || conversation.contacts?.opted_out_at) return;
+
+  const [{ data: pending }, { data: booked }, { data: logged }] =
+    await Promise.all([
+      admin
+        .from("follow_ups")
+        .select("id")
+        .eq("contact_id", contactId)
+        .eq("status", "pendente")
+        .limit(1)
+        .throwOnError(),
+      admin
+        .from("appointments")
+        .select("id")
+        .eq("contact_id", contactId)
+        .eq("status", "agendado")
+        .gt("starts_at", new Date().toISOString())
+        .limit(1)
+        .throwOnError(),
+      admin
+        .from("appointment_log")
+        .select("id")
+        .eq("conversation_id", conversationId)
+        .limit(1)
+        .throwOnError(),
+    ]);
+  if (pending.length || booked.length || logged.length) return;
+
+  const base = {
+    clinicId: conversation.clinic_id,
+    contactId,
+    conversationId,
+  };
+
+  if (classified.followUpDate) {
+    const checked = checkFollowUpDate(classified.followUpDate);
+    if ("date" in checked) {
+      await setPendingFollowUp(admin, {
+        ...base,
+        date: checked.date,
+        source: "cliente",
+        reason: classified.topic,
+      });
+      return;
+    }
+  }
+
+  // Conversa aberta por uma retomada que ficou sem resposta.
+  if (conversation.follow_up_id && !classified.answered) {
+    const { data: previous } = await admin
+      .from("follow_ups")
+      .select("attempt, reason")
+      .eq("id", conversation.follow_up_id)
+      .maybeSingle()
+      .throwOnError();
+    const days =
+      clinic.followup_abandoned_days ?? clinic.followup_concluded_days ?? 7;
+    if (previous && previous.attempt < clinic.followup_max_attempts) {
+      await setPendingFollowUp(admin, {
+        ...base,
+        date: brasiliaDatePlus(days),
+        source: "padrao",
+        reason: previous.reason,
+        attempt: previous.attempt + 1,
+      });
+    }
+    return;
+  }
+
+  const days =
+    conversation.status === "abandonada"
+      ? clinic.followup_abandoned_days
+      : conversation.status === "concluida"
+        ? clinic.followup_concluded_days
+        : null;
+  if (!days) return;
+  await setPendingFollowUp(admin, {
+    ...base,
+    date: brasiliaDatePlus(days),
+    source: "padrao",
+    reason: classified.topic,
+  });
 }
 
 /**
@@ -86,23 +223,39 @@ export async function closeConversation(
   conversation: { id: number; clinic_id: string },
   { fallback }: { fallback: boolean },
 ) {
-  let values: Values;
+  let classified: Classified;
   try {
-    values = await classify(admin, conversation);
+    classified = await classify(admin, conversation);
   } catch (e) {
     if (!fallback || !(e instanceof AiError)) throw e;
-    values = { status: "concluida" };
+    classified = {
+      values: { status: "concluida" },
+      answered: true,
+      followUpDate: null,
+      topic: "",
+    };
   }
 
   // Só fecha se ainda estiver aberta: o job e alguém no painel podem chegar juntos.
   const { data } = await admin
     .from("conversations")
-    .update({ ...values, closed_at: new Date().toISOString() })
+    .update({ ...classified.values, closed_at: new Date().toISOString() })
     .eq("id", conversation.id)
     .eq("status", "aberta")
     .select("id")
     .throwOnError();
-  return data.length > 0;
+  if (!data.length) return false;
+
+  try {
+    await planFollowUp(admin, conversation.id, classified);
+  } catch (e) {
+    // A conversa já está encerrada; a retomada é um extra.
+    console.error(
+      `[retomada] planejar conversa ${conversation.id}:`,
+      (e as Error).message,
+    );
+  }
+  return true;
 }
 
 /**
@@ -115,7 +268,7 @@ export async function classifyImported(
 ) {
   let values: Values = {};
   try {
-    values = await classify(admin, conversation);
+    values = (await classify(admin, conversation)).values;
   } catch (e) {
     if (!(e instanceof AiError)) throw e;
   }

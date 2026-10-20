@@ -1,6 +1,7 @@
 import {
   BarChart3,
   CalendarClock,
+  CalendarSync,
   CreditCard,
   FlaskConical,
   Headset,
@@ -44,6 +45,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "Mensagens prontas",
         icon: MessageSquareText,
         keywords: "templates modelos meta aprovação 24 horas lembrete",
+      },
+      {
+        href: "/painel/retomadas",
+        label: "Retomadas",
+        icon: CalendarSync,
+        keywords: "follow-up retorno voltar a chamar remarketing abandonadas",
       },
       {
         href: "/painel/relatorios",
