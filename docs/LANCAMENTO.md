@@ -145,7 +145,7 @@ Para cada clínica, depois que ela conectar:
 ## 5c. Análise da IA
 
 - [ ] Opcional: `GEMINI_INSIGHTS_MODEL` na Vercel para usar outro modelo na análise mensal (padrão
-      `gemini-2.5-flash`). Usa a mesma `GEMINI_API_KEY`.
+      `gemini-3.8-flash`). Usa a mesma `GEMINI_API_KEY`.
 
 ## 6. Conteúdo e jurídico
 

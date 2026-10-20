@@ -13,7 +13,7 @@ import { AiError, gemini } from "./engine";
  * atendimento, porque roda no máximo uma vez por mês.
  */
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-3.8-flash";
 
 export function insightsModel() {
   return process.env.GEMINI_INSIGHTS_MODEL?.trim() || DEFAULT_MODEL;
