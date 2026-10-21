@@ -1,14 +1,5 @@
 import "server-only";
 
-import {
-  ApiError,
-  GoogleGenAI,
-  ThinkingLevel,
-  type Content,
-  type FunctionDeclaration,
-  type GenerateContentConfig,
-  type Part,
-} from "@google/genai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
@@ -36,12 +27,17 @@ import {
 import { checkEvaluation } from "./evaluation";
 import { knownFieldNames, preparePatientData } from "./patient-data";
 import { buildSystemPrompt, parseReply, type AssistantContext } from "./prompt";
+import {
+  AiError,
+  chat,
+  generateJson,
+  type LlmMessage,
+  type ToolDeclaration,
+} from "./provider";
 
-const DEFAULT_MODEL = "gemini-3.8-flash";
+export { AiError };
+
 const MAX_TOOL_ROUNDS = 4;
-
-/** Erro que pode ser mostrado como está para quem testa no painel. */
-export class AiError extends Error {}
 
 export type ChatTurn = { role: "user" | "model"; text: string };
 
@@ -145,74 +141,6 @@ export async function loadAssistantContext(
   };
 }
 
-export function geminiModel() {
-  return process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
-}
-
-let client: GoogleGenAI | null = null;
-export function gemini() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    throw new AiError(
-      "A chave do Gemini ainda não foi configurada no servidor (GEMINI_API_KEY).",
-    );
-  }
-  client ??= new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      timeout: 30_000,
-      // tenta de novo sozinho em sobrecarga temporária (408, 429 e 5xx)
-      retryOptions: { attempts: 3, initialDelay: 0.8, maxDelay: 4 },
-    },
-  });
-  return client;
-}
-
-/**
- * Raciocínio interno no mínimo: é um chat de atendimento e cada token de raciocínio sai do
- * orçamento da resposta. A série 2.5 usa um orçamento em tokens; da 3 em diante, um nível.
- */
-function thinkingConfig(
-  model: string,
-): GenerateContentConfig["thinkingConfig"] {
-  if (/^gemini-2\.5-flash/.test(model)) return { thinkingBudget: 0 };
-  if (/^gemini-2\.5/.test(model)) return { thinkingBudget: 128 };
-  return { thinkingLevel: ThinkingLevel.LOW };
-}
-
-async function generate(
-  contents: Content[],
-  systemInstruction: string,
-  tools: FunctionDeclaration[],
-) {
-  const model = geminiModel();
-  try {
-    const response = await gemini().models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.6,
-        maxOutputTokens: 1024,
-        thinkingConfig: thinkingConfig(model),
-        tools: tools.length ? [{ functionDeclarations: tools }] : undefined,
-      },
-    });
-    const usage = response.usageMetadata;
-    console.log(
-      `[gemini] ${model}: entrada=${usage?.promptTokenCount ?? 0} (${usage?.cachedContentTokenCount ?? 0} em cache), saída=${usage?.candidatesTokenCount ?? 0}`,
-    );
-    return response;
-  } catch (e) {
-    if (e instanceof AiError) throw e;
-    const status = e instanceof ApiError ? e.status : "rede";
-    console.error(`[gemini] ${status}:`, (e as Error).message.slice(0, 300));
-    throw new AiError(
-      "Não foi possível gerar a resposta agora. Tente novamente em instantes.",
-    );
-  }
-}
-
 /**
  * Com a avaliação obrigatória, barra a consulta de horários e o agendamento de um procedimento
  * para quem ainda não tem avaliação válida, antes de chegar à agenda da clínica.
@@ -303,36 +231,36 @@ export async function generateReply({
     sentImageIds,
     previousSummaries,
   });
-  const tools: FunctionDeclaration[] = [
+  const tools: ToolDeclaration[] = [
     ...(agenda ? agendaTools(fields) : []),
     ...(followUp ? [FOLLOW_UP_TOOL] : []),
   ];
-  const contents: Content[] = history
+  const messages: LlmMessage[] = history
     .filter((m) => m.text.trim())
-    .map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
-  if (!contents.some((c) => c.role === "user"))
+    .map((m) => ({ role: m.role, text: m.text }));
+  if (!messages.some((m) => m.role === "user"))
     throw new AiError("Mensagem vazia.");
 
   const toolCalls: ToolCall[] = [];
   let raw = "";
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await generate(contents, system, tools);
-    const parts = response.candidates?.[0]?.content?.parts ?? [];
-    const calls = parts.filter((p) => p.functionCall);
-    if (!calls.length || !tools.length) {
-      raw = parts
-        .filter((p) => p.text && !p.thought)
-        .map((p) => p.text)
-        .join("")
-        .trim();
+    const response = await chat({
+      system,
+      messages,
+      tools,
+      temperature: 0.6,
+      maxTokens: 1024,
+    });
+    if (!response.calls.length || !tools.length) {
+      raw = response.text;
       break;
     }
 
-    contents.push({ role: "model", parts });
-    const responses: Part[] = [];
-    for (const { functionCall } of calls) {
-      const name = functionCall!.name ?? "";
-      const args = { ...(functionCall!.args ?? {}) };
+    messages.push(response.message);
+    const results: { id?: string; name: string; response: AgendaResult }[] = [];
+    for (const call of response.calls) {
+      const name = call.name;
+      const args = { ...call.args };
       let result: AgendaResult;
       if (name === FOLLOW_UP_TOOL.name) {
         result = followUp
@@ -370,12 +298,9 @@ export async function generateReply({
           simulateAgenda(name, args);
       }
       toolCalls.push({ name, args, result });
-      responses.push({
-        functionResponse: { id: functionCall!.id, name, response: result },
-      });
+      results.push({ id: call.id, name, response: result });
     }
-    // O resultado da função volta com o papel "user".
-    contents.push({ role: "user", parts: responses });
+    messages.push({ role: "tool", results });
   }
 
   if (!raw) {
@@ -442,37 +367,25 @@ export async function classifyConversation({
     transcript,
   ].join("\n");
 
-  const model = geminiModel();
-  let text: string;
-  try {
-    const response = await gemini().models.generateContent({
-      model,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        temperature: 0,
-        maxOutputTokens: 320,
-        thinkingConfig: thinkingConfig(model),
-        responseMimeType: "application/json",
-        responseJsonSchema: {
-          type: "object",
-          properties: {
-            motivo: { type: ["string", "null"] },
-            status: { type: "string", enum: ["concluida", "abandonada"] },
-            resumo: { type: "string" },
-            retorno: { type: ["string", "null"] },
-            assunto: { type: "string" },
-          },
-          required: ["motivo", "status", "resumo", "retorno", "assunto"],
-        },
+  const text = await generateJson({
+    prompt,
+    temperature: 0,
+    maxTokens: 320,
+    use: "chat",
+    label: "classificação",
+    failure: "Não foi possível classificar a conversa agora.",
+    schema: {
+      type: "object",
+      properties: {
+        motivo: { type: ["string", "null"] },
+        status: { type: "string", enum: ["concluida", "abandonada"] },
+        resumo: { type: "string" },
+        retorno: { type: ["string", "null"] },
+        assunto: { type: "string" },
       },
-    });
-    text = response.text ?? "";
-  } catch (e) {
-    if (e instanceof AiError) throw e;
-    const status = e instanceof ApiError ? e.status : "rede";
-    console.error(`[gemini] classificação ${status}:`, (e as Error).message);
-    throw new AiError("Não foi possível classificar a conversa agora.");
-  }
+      required: ["motivo", "status", "resumo", "retorno", "assunto"],
+    },
+  });
 
   let parsed: {
     motivo?: unknown;

@@ -3,7 +3,8 @@
 import { refresh } from "next/cache";
 
 import { AiError } from "@/lib/ai/engine";
-import { generateInsights, insightsModel } from "@/lib/ai/insights";
+import { generateInsights } from "@/lib/ai/insights";
+import { aiModel } from "@/lib/ai/provider";
 import type { FormResult } from "@/lib/auth/validation";
 import { isoDateInBrasilia } from "@/lib/format";
 import { getActionContext } from "@/lib/painel/context";
@@ -60,7 +61,7 @@ export async function generateInsightsAction(): Promise<FormResult> {
     period_from: period.from,
     period_to: period.to,
     content: null,
-    model: insightsModel(),
+    model: aiModel("insights"),
     created_by: ctx.user.id,
   };
   const { data: claimed, error: claimError } = await admin

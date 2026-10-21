@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Reveal } from "@/components/site/reveal";
+import { aiProviderLabel } from "@/lib/ai/provider";
 import { SectionHeading } from "@/components/site/section-heading";
 import {
   Accordion,
@@ -35,8 +36,8 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     a: (
       <>
         As conversas ficam no painel, com acesso restrito à sua clínica. Para
-        gerar as respostas, o texto da conversa é processado pelo Google
-        (Gemini). Os detalhes estão na{" "}
+        gerar as respostas, o texto da conversa é processado pela inteligência
+        artificial ({aiProviderLabel()}). Os detalhes estão na{" "}
         <Link
           href="/privacidade"
           className="text-primary underline underline-offset-4"
