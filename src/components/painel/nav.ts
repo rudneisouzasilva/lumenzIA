@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  BellRing,
   Brain,
   CalendarClock,
   CalendarDays,
@@ -149,6 +150,13 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "Horários",
         icon: CalendarClock,
         keywords: "funcionamento feriados lembrete",
+      },
+      {
+        href: "/painel/avisos",
+        label: "Avisos e lembretes",
+        icon: BellRing,
+        keywords:
+          "notificações aviso equipe e-mail email whatsapp lembrete paciente",
       },
       {
         href: "/painel/agenda",

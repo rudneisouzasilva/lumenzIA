@@ -7,7 +7,9 @@ import {
   pickActiveSubscription,
   type SubscriptionRow,
 } from "@/lib/billing/subscription";
+import { parseBookingFields } from "@/lib/booking-fields";
 import { isoDateInBrasilia } from "@/lib/format";
+import { emailConfigured, sendEmail } from "@/lib/notifications/email";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Sender } from "@/lib/whatsapp/client";
@@ -35,13 +37,19 @@ function formatWhen(iso: string) {
 type ClinicReady =
   | {
       ok: true;
-      sender: Sender;
-      template: { name: string; language: string; body: string };
+      clinicName: string;
+      /** Número e template de lembrete aprovado (null se o WhatsApp não está pronto). */
+      whatsapp: {
+        sender: Sender;
+        template: { name: string; language: string; body: string };
+      } | null;
+      /** A clínica quer o lembrete também por e-mail (e o e-mail é pedido no agendamento). */
+      email: boolean;
       integration: Integration;
     }
   | { ok: false; why: string };
 
-/** Pode mandar lembrete por esta clínica? (assistente ligada, número, template e assinatura) */
+/** Pode mandar lembrete por esta clínica? (assistente ligada, assinatura e algum canal pronto) */
 async function prepareClinic(
   admin: Admin,
   clinicId: string,
@@ -50,7 +58,7 @@ async function prepareClinic(
     await Promise.all([
       admin
         .from("clinics")
-        .select("is_active")
+        .select("name, is_active, reminder_by_email, booking_fields")
         .eq("id", clinicId)
         .single()
         .throwOnError(),
@@ -69,16 +77,30 @@ async function prepareClinic(
         .throwOnError(),
     ]);
   if (!clinic.is_active) return { ok: false, why: "assistente pausada" };
-  const template = await templateFor(admin, clinicId, "lembrete");
-  if (!template) return { ok: false, why: "sem template de lembrete aprovado" };
   if (!pickActiveSubscription(subs as SubscriptionRow[]))
     return { ok: false, why: "assinatura vencida" };
-  const sender = await getClinicSender(admin, clinicId);
-  if (!sender) return { ok: false, why: "WhatsApp não conectado" };
+
+  const [template, sender] = await Promise.all([
+    templateFor(admin, clinicId, "lembrete"),
+    getClinicSender(admin, clinicId),
+  ]);
+  const email =
+    clinic.reminder_by_email &&
+    parseBookingFields(clinic.booking_fields).email !== "desligado" &&
+    emailConfigured();
+  if (!(template && sender) && !email) {
+    return {
+      ok: false,
+      why: sender
+        ? "sem template de lembrete aprovado"
+        : "WhatsApp não conectado",
+    };
+  }
   return {
     ok: true,
-    sender,
-    template,
+    clinicName: clinic.name,
+    whatsapp: template && sender ? { sender, template } : null,
+    email,
     integration,
   };
 }
@@ -105,6 +127,9 @@ async function stillScheduled(integration: Integration, appointment: Due) {
 
 async function remind(admin: Admin, ready: ClinicReady, appointment: Due) {
   if (!ready.ok) return "skipped";
+  const byEmail = ready.email && !!appointment.patient_email;
+  // Sem WhatsApp pronto e sem e-mail desta pessoa, não há por onde avisar.
+  if (!ready.whatsapp && !byEmail) return "skipped";
 
   if (!(await stillScheduled(ready.integration, appointment))) {
     await admin
@@ -125,22 +150,64 @@ async function remind(admin: Admin, ready: ClinicReady, appointment: Due) {
     .throwOnError();
   if (!claimed.length) return "skipped";
 
-  // O template aprovado na Meta precisa ter 2 variáveis no corpo: {{1}} nome, {{2}} data e hora.
   const firstName = appointment.patient_name.trim().split(/\s+/)[0] || "você";
-  try {
-    await sendTemplateMessage(
-      ready.sender,
-      appointment.contact_phone,
-      ready.template,
-      [firstName, formatWhen(appointment.starts_at)],
-    );
-  } catch (e) {
-    // Desmarca para tentar de novo na próxima rodada, enquanto ainda estiver na janela.
+  const when = formatWhen(appointment.starts_at);
+  let delivered = false;
+  let failure: unknown = null;
+
+  // O template aprovado na Meta precisa ter 2 variáveis no corpo: {{1}} nome, {{2}} data e hora.
+  if (ready.whatsapp) {
+    try {
+      await sendTemplateMessage(
+        ready.whatsapp.sender,
+        appointment.contact_phone,
+        ready.whatsapp.template,
+        [firstName, when],
+      );
+      delivered = true;
+    } catch (e) {
+      failure = e;
+      console.error(
+        `[lembretes] WhatsApp do agendamento ${appointment.id}:`,
+        (e as Error).message,
+      );
+    }
+  }
+
+  if (byEmail) {
+    try {
+      await sendEmail({
+        to: appointment.patient_email!,
+        fromName: ready.clinicName,
+        subject: `Lembrete do seu horário · ${ready.clinicName}`,
+        text: [
+          `Olá, ${firstName}!`,
+          "",
+          `Passando para lembrar do seu horário na ${ready.clinicName}: ${when}${appointment.procedure_name ? ` (${appointment.procedure_name})` : ""}.`,
+          "",
+          "Se precisar remarcar, é só responder no WhatsApp da clínica.",
+          "",
+          ready.clinicName,
+        ].join("\n"),
+      });
+      delivered = true;
+    } catch (e) {
+      failure ??= e;
+      console.error(
+        `[lembretes] e-mail do agendamento ${appointment.id}:`,
+        (e as Error).message,
+      );
+    }
+  }
+
+  if (!delivered) {
+    // Nenhum canal entregou: desmarca para tentar de novo na próxima rodada, enquanto ainda
+    // estiver na janela. Se um canal entregou, não repete (a pessoa já foi avisada).
     await admin
       .from("appointments")
       .update({ reminder_sent_at: null })
       .eq("id", appointment.id);
-    throw e;
+    throw failure ?? new Error("nenhum canal disponível para este agendamento");
   }
   return "sent";
 }

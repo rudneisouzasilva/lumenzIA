@@ -12,6 +12,7 @@ import {
   type SubscriptionRow,
 } from "@/lib/billing/subscription";
 import { formatDate } from "@/lib/format";
+import { notifyStaff } from "@/lib/notifications/staff";
 import { publicImageUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -33,7 +34,6 @@ import {
 } from "./conversations";
 import { handlePartnerRemoved } from "./embedded-signup";
 import { messageText } from "./message-text";
-import { sendTemplateMessage, templateFor } from "./templates";
 
 export { DEFAULT_CONVERSATION_TIMEOUT_HOURS } from "./conversations";
 
@@ -283,32 +283,17 @@ async function notifyQuotaExceeded(
     .select("id")
     .throwOnError();
   if (!claimed?.length) return;
-  await alertStaff(admin, clinic, sender, [
-    "Limite de mensagens do plano atingido",
-    "A assistente parou de responder pelo WhatsApp até a renovação da assinatura",
-  ]);
-}
-
-/** Aviso no WhatsApp da equipe, pelo template "aviso à equipe" (se houver número e template). */
-async function alertStaff(
-  admin: Admin,
-  clinic: InboundClinic,
-  sender: Sender,
-  params: [string, string],
-) {
-  if (!clinic.staff_phone_number) return;
-  const template = await templateFor(admin, clinic.id, "aviso_equipe");
-  if (!template) return;
-  await sendTemplateMessage(
-    sender,
-    clinic.staff_phone_number,
-    template,
-    params,
-  );
+  await notifyStaff(admin, clinic.id, sender, {
+    title: "Limite de mensagens do plano atingido",
+    params: [
+      "Limite de mensagens do plano atingido",
+      "A assistente parou de responder pelo WhatsApp até a renovação da assinatura",
+    ],
+  });
 }
 
 /**
- * Põe a conversa na fila de atendimento humano e avisa a equipe por template. Vale tanto quando
+ * Põe a conversa na fila de atendimento humano e avisa a equipe pelos canais da clínica. Vale tanto quando
  * a IA pede ([[ESCALAR]]) quanto quando ela falha: nos dois casos alguém precisa assumir.
  */
 async function escalateToStaff(
@@ -334,10 +319,10 @@ async function escalateToStaff(
   }
 
   try {
-    await alertStaff(admin, clinic, sender, [
-      `+${from}`,
-      patientMessage.slice(0, 200),
-    ]);
+    await notifyStaff(admin, clinic.id, sender, {
+      title: "Paciente pedindo atendimento",
+      params: [`+${from}`, patientMessage.slice(0, 200)],
+    });
   } catch (e) {
     console.error("[whatsapp] aviso à equipe:", (e as Error).message);
   }

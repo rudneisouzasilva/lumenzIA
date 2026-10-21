@@ -105,6 +105,11 @@ async function Checks() {
       hint: "PAYMENT_MODE=mercadopago, MP_ACCESS_TOKEN e MP_WEBHOOK_SECRET.",
     },
     {
+      label: "E-mails de avisos e lembretes (Resend)",
+      state: env("RESEND_API_KEY") && env("NOTIFY_EMAIL_FROM") ? "ok" : "todo",
+      hint: "RESEND_API_KEY e NOTIFY_EMAIL_FROM (endereço do domínio verificado no Resend).",
+    },
+    {
       label: "IA (Gemini)",
       state: env("GEMINI_API_KEY") ? "ok" : "todo",
       hint: "GEMINI_API_KEY.",

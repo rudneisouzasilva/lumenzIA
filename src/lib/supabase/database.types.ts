@@ -382,8 +382,11 @@ export type Database = {
           is_active: boolean;
           name: string;
           past_conversations: string;
+          reminder_by_email: boolean;
           reminder_template_name: string | null;
           require_evaluation: boolean;
+          staff_alert_channels: string[];
+          staff_alert_email: string | null;
           staff_alert_template_name: string | null;
           staff_phone_number: string | null;
           template_language: string;
@@ -420,8 +423,11 @@ export type Database = {
           is_active?: boolean;
           name: string;
           past_conversations?: string;
+          reminder_by_email?: boolean;
           reminder_template_name?: string | null;
           require_evaluation?: boolean;
+          staff_alert_channels?: string[];
+          staff_alert_email?: string | null;
           staff_alert_template_name?: string | null;
           staff_phone_number?: string | null;
           template_language?: string;
@@ -457,8 +463,11 @@ export type Database = {
           is_active?: boolean;
           name?: string;
           past_conversations?: string;
+          reminder_by_email?: boolean;
           reminder_template_name?: string | null;
           require_evaluation?: boolean;
+          staff_alert_channels?: string[];
+          staff_alert_email?: string | null;
           staff_alert_template_name?: string | null;
           staff_phone_number?: string | null;
           template_language?: string;
@@ -1607,6 +1616,7 @@ export type Database = {
           contact_phone: string;
           external_ref: string | null;
           id: number;
+          patient_email: string | null;
           patient_name: string;
           procedure_name: string;
           starts_at: string;

@@ -21,6 +21,7 @@ senha e endereço dos jobs) a cada visita.
   7. `20261020000015_google_calendar.sql` (Google Agenda)
   8. `20261020000016_evaluation_required.sql` (avaliação obrigatória antes de procedimentos)
   9. `20261020000017_booking_fields.sql` (dados pedidos no agendamento)
+  10. `20261021000018_notification_channels.sql` (avisos à equipe e lembretes por e-mail)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
@@ -59,6 +60,10 @@ confirmação de e-mail foi desligada na etapa 4. Para religar:
 - [ ] Supabase → **Authentication → Emails → SMTP Settings** → Enable custom SMTP:
       host `smtp.resend.com`, porta `465`, usuário `resend`, senha = uma API key do Resend,
       remetente `nao-responda@lumenzia.com.br`, nome `LumenzIA`.
+- [ ] Avisos e lembretes por e-mail (tela **Avisos e lembretes** do painel): na Vercel,
+      `RESEND_API_KEY` (uma API key do Resend com permissão de envio) e `NOTIFY_EMAIL_FROM`, ex.:
+      `LumenzIA <avisos@lumenzia.com.br>`. Nos lembretes, o nome que aparece é o da clínica.
+      Plano grátis do Resend: 3.000 e-mails por mês, 100 por dia.
 - [ ] **Authentication → Rate Limits**: subir o limite de e-mails por hora (ex.: 100).
 - [ ] **Authentication → Emails → Templates**: traduzir para português “Confirm signup”, “Reset
       password” e “Change email address” (os links `{{ .ConfirmationURL }}` continuam iguais).
@@ -126,7 +131,8 @@ Para cada clínica, depois que ela conectar:
       aprovado pela Meta. Ele é criado sozinho ao conectar; se algum ficar “Não enviada”, use
       **Criar as mensagens da LumenzIA** de novo. Os nomes digitados na aba **Templates** em
       /admin continuam valendo para quem já tinha.
-- [ ] Preencher o WhatsApp da equipe (aba **WhatsApp**) para os avisos de atendimento humano.
+- [ ] A clínica escolhe por onde a equipe é avisada (WhatsApp e/ou e-mail) e cadastra o contato em
+      **Avisos e lembretes** no painel. O campo da aba **WhatsApp** em /admin continua valendo.
 
 ## 5b. Google Agenda (cada clínica conecta a própria conta)
 
