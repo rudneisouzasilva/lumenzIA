@@ -155,6 +155,15 @@ Para cada clínica, depois que ela conectar:
 - [ ] Opcional: `GEMINI_INSIGHTS_MODEL` na Vercel para usar outro modelo na análise mensal (padrão
       `gemini-3.8-flash`). Usa a mesma `GEMINI_API_KEY`.
 
+## 5d. Trocar de IA
+
+`AI_PROVIDER` na Vercel escolhe quem responde no atendimento, na classificação e na análise:
+`gemini` (padrão), `groq`, `deepseek`, `openrouter`, `openai` ou `custom` (com `AI_BASE_URL`). Os
+que não são o Gemini usam `AI_API_KEY` e, se preciso, `AI_MODEL` / `AI_INSIGHTS_MODEL`. Depois de
+trocar, faça **Redeploy** na Vercel. A `GEMINI_API_KEY` pode continuar salva para voltar quando
+quiser. O provedor escolhido aparece em /admin/lancamento e no nome citado na política de
+privacidade.
+
 ## 6. Conteúdo e jurídico
 
 - [ ] Política de privacidade (`src/app/(site)/privacidade/page.tsx`): preencher os textos

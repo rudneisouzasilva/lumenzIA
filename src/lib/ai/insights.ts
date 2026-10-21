@@ -1,8 +1,6 @@
 import "server-only";
 
-import { ApiError } from "@google/genai";
-
-import { AiError, gemini } from "./engine";
+import { AiError, generateJson } from "./provider";
 
 /**
  * Análise mensal da IA
@@ -12,12 +10,6 @@ import { AiError, gemini } from "./engine";
  * devolve uma leitura em português com o que fazer. Usa um modelo com mais raciocínio do que o do
  * atendimento, porque roda no máximo uma vez por mês.
  */
-
-const DEFAULT_MODEL = "gemini-3.8-flash";
-
-export function insightsModel() {
-  return process.env.GEMINI_INSIGHTS_MODEL?.trim() || DEFAULT_MODEL;
-}
 
 export type Insights = {
   resumo: string;
@@ -75,12 +67,6 @@ const SCHEMA = {
   ],
 };
 
-function thinking(model: string) {
-  if (/^gemini-2\.5-flash/.test(model)) return { thinkingBudget: 2048 };
-  if (/^gemini-2\.5/.test(model)) return { thinkingBudget: 4096 };
-  return {};
-}
-
 const strings = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 function list<T>(v: unknown, map: (x: Record<string, unknown>) => T | null) {
   return (Array.isArray(v) ? v : [])
@@ -119,34 +105,17 @@ export async function generateInsights({
     JSON.stringify(dataset),
   ].join("\n");
 
-  const model = insightsModel();
-  let raw: string;
-  try {
-    const response = await gemini().models.generateContent({
-      model,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        temperature: 0.4,
-        maxOutputTokens: 8192,
-        thinkingConfig: thinking(model),
-        responseMimeType: "application/json",
-        responseJsonSchema: SCHEMA,
-        httpOptions: { timeout: 50_000 },
-      },
-    });
-    raw = response.text ?? "";
-    const usage = response.usageMetadata;
-    console.log(
-      `[gemini] análise ${model}: entrada=${usage?.promptTokenCount ?? 0}, saída=${usage?.candidatesTokenCount ?? 0}, raciocínio=${usage?.thoughtsTokenCount ?? 0}`,
-    );
-  } catch (e) {
-    if (e instanceof AiError) throw e;
-    const status = e instanceof ApiError ? e.status : "rede";
-    console.error(`[gemini] análise ${status}:`, (e as Error).message);
-    throw new AiError(
+  const raw = await generateJson({
+    prompt,
+    schema: SCHEMA,
+    temperature: 0.4,
+    maxTokens: 8192,
+    use: "insights",
+    timeoutMs: 50_000,
+    label: "análise",
+    failure:
       "Não foi possível gerar a análise agora. Tente de novo em alguns minutos.",
-    );
-  }
+  });
 
   let parsed: Record<string, unknown>;
   try {

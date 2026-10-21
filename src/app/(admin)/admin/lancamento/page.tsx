@@ -5,6 +5,7 @@ import { CheckCircle2, CircleAlert, CircleDashed, Rocket } from "lucide-react";
 import { SyncCronUrlButton } from "@/components/admin/sync-cron-url";
 import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
 import { getAdminContext } from "@/lib/admin/context";
+import { aiConfigured, aiModel, aiProviderLabel } from "@/lib/ai/provider";
 import { formatDateTime } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/env";
@@ -110,9 +111,9 @@ async function Checks() {
       hint: "RESEND_API_KEY e NOTIFY_EMAIL_FROM (endereço do domínio verificado no Resend).",
     },
     {
-      label: "IA (Gemini)",
-      state: env("GEMINI_API_KEY") ? "ok" : "todo",
-      hint: "GEMINI_API_KEY.",
+      label: `IA (${aiProviderLabel()}, ${aiModel() || "sem modelo"})`,
+      state: aiConfigured() ? "ok" : "todo",
+      hint: "AI_PROVIDER escolhe a IA (padrão gemini, com GEMINI_API_KEY). Para groq, deepseek, openrouter ou openai: AI_API_KEY e, se preciso, AI_MODEL.",
     },
   ];
 

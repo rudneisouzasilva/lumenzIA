@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { aiProviderLabel } from "@/lib/ai/provider";
 import { site, whatsappLink } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -135,8 +136,9 @@ export default function PrivacyPage() {
       </p>
       <ul>
         <li>
-          <strong>Google (Gemini):</strong> o texto das conversas e as
-          configurações da assistente são enviados para gerar as respostas.
+          <strong>{aiProviderLabel()} (inteligência artificial):</strong> o
+          texto das conversas e as configurações da assistente são enviados para
+          gerar as respostas.
         </li>
         <li>
           <strong>Meta (WhatsApp Business Platform):</strong> envio e
