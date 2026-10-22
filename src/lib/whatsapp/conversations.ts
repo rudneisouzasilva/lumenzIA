@@ -34,15 +34,19 @@ export async function clinicByPhoneNumberId(
   return data;
 }
 
+export type Channel = "whatsapp" | "instagram";
+
 /**
  * A conversa aberta do contato, se ainda estiver dentro do tempo limite; senão, uma nova.
  * `newState` é quem atende uma conversa nova: a IA, ou a equipe quando a IA não pode responder.
+ * No Instagram, `phone` é o id da pessoa no Instagram.
  */
 export async function findOrCreateConversation(
   admin: Admin,
   clinic: Pick<InboundClinic, "id" | "conversation_timeout_hours">,
   phone: string,
   newState: Database["public"]["Enums"]["attendance_state"] = "ia",
+  channel: Channel = "whatsapp",
 ) {
   const hours =
     clinic.conversation_timeout_hours ?? DEFAULT_CONVERSATION_TIMEOUT_HOURS;
@@ -52,6 +56,7 @@ export async function findOrCreateConversation(
     .select("id, attendance_state, contact_id")
     .eq("clinic_id", clinic.id)
     .eq("contact_phone", phone)
+    .eq("channel", channel)
     .eq("status", "aberta")
     .gt("last_message_at", since)
     .order("last_message_at", { ascending: false })
@@ -66,6 +71,7 @@ export async function findOrCreateConversation(
       clinic_id: clinic.id,
       contact_phone: phone,
       attendance_state: newState,
+      channel,
     })
     .select("id, attendance_state, contact_id")
     .single()

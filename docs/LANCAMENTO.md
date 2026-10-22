@@ -22,6 +22,7 @@ senha e endereço dos jobs) a cada visita.
   8. `20261020000016_evaluation_required.sql` (avaliação obrigatória antes de procedimentos)
   9. `20261020000017_booking_fields.sql` (dados pedidos no agendamento)
   10. `20261021000018_notification_channels.sql` (avisos à equipe e lembretes por e-mail)
+  11. `20261021000019_instagram.sql` (Instagram: Direct e comentários)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
@@ -149,6 +150,35 @@ Para cada clínica, depois que ela conectar:
 4. **Verificação do Google**: os escopos da agenda são “sensíveis”. Enquanto o app não for
    verificado, só os usuários de teste cadastrados na tela de consentimento conseguem conectar (até 100) e aparece um aviso de app não verificado. Pedir a verificação com um vídeo mostrando o
    botão **Conectar com o Google** em /painel/agenda e o uso da agenda; costuma levar alguns dias.
+
+## 5b2. Instagram (cada clínica conecta a própria conta)
+
+Usa o **mesmo app** da Meta do WhatsApp, com o login do Instagram (a clínica não precisa de Página
+do Facebook, só de uma conta **profissional**). As mensagens do Instagram não são cobradas pela
+Meta.
+
+1. No app da Meta: **Add product → Instagram → API setup with Instagram login**.
+2. Em **Instagram → API setup with Instagram login**:
+   - [ ] Copiar o **Instagram app ID** e o **Instagram app secret** (são diferentes do App ID e do
+         App Secret do app) para `INSTAGRAM_APP_ID` e `INSTAGRAM_APP_SECRET` na Vercel.
+   - [ ] **Set up Instagram business login → Business login settings**: em OAuth redirect URIs,
+         `https://lumenz-ia.vercel.app/api/instagram/callback` (e, depois, o do domínio próprio).
+   - [ ] **Configure webhooks**: Callback URL `https://lumenz-ia.vercel.app/api/webhooks/instagram`
+         e verify token igual ao `INSTAGRAM_VERIFY_TOKEN` (se ficar vazio, vale o
+         `WHATSAPP_VERIFY_TOKEN`). Assinar os campos **messages** e **comments**.
+3. **Testar antes da aprovação**: com o app em modo de desenvolvimento, adicione a conta do
+   Instagram de teste em **App roles → Roles → Instagram Testers** e aceite o convite no Instagram
+   (Configurações → Apps e sites → Convites de testador). Depois conecte em **/painel/instagram**,
+   ligue a assistente e mande uma mensagem no Direct de outra conta.
+4. **App Review**: pedir **Advanced Access** para `instagram_business_basic`,
+   `instagram_business_manage_messages` e `instagram_business_manage_comments`, com um vídeo
+   mostrando o botão **Conectar com o Instagram**, uma mensagem do Direct sendo respondida e um
+   comentário recebendo a resposta no privado. A Meta exige a verificação da empresa (a mesma do
+   WhatsApp) e as URLs de política de privacidade e de exclusão de dados (a Vercel serve, não
+   precisa de domínio próprio).
+
+O token de cada clínica vale 60 dias e é renovado sozinho pelo job diário da agenda. Se vencer
+(por exemplo, a clínica trocou a senha), a tela do Instagram pede para conectar de novo.
 
 ## 5c. Análise da IA
 

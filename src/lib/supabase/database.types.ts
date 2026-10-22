@@ -599,6 +599,8 @@ export type Database = {
           estimated_value_cents: number | null;
           first_contact_at: string;
           id: string;
+          instagram_id: string | null;
+          instagram_username: string;
           last_contact_at: string;
           lost_reason_id: string | null;
           name: string;
@@ -606,7 +608,7 @@ export type Database = {
           opted_out_at: string | null;
           owner_id: string | null;
           patient_data: Json;
-          phone: string;
+          phone: string | null;
           stage_changed_at: string | null;
           stage_id: string | null;
           updated_at: string;
@@ -619,6 +621,8 @@ export type Database = {
           estimated_value_cents?: number | null;
           first_contact_at?: string;
           id?: string;
+          instagram_id?: string | null;
+          instagram_username?: string;
           last_contact_at?: string;
           lost_reason_id?: string | null;
           name?: string;
@@ -626,7 +630,7 @@ export type Database = {
           opted_out_at?: string | null;
           owner_id?: string | null;
           patient_data?: Json;
-          phone: string;
+          phone?: string | null;
           stage_changed_at?: string | null;
           stage_id?: string | null;
           updated_at?: string;
@@ -638,6 +642,8 @@ export type Database = {
           estimated_value_cents?: number | null;
           first_contact_at?: string;
           id?: string;
+          instagram_id?: string | null;
+          instagram_username?: string;
           last_contact_at?: string;
           lost_reason_id?: string | null;
           name?: string;
@@ -645,7 +651,7 @@ export type Database = {
           opted_out_at?: string | null;
           owner_id?: string | null;
           patient_data?: Json;
-          phone?: string;
+          phone?: string | null;
           stage_changed_at?: string | null;
           stage_id?: string | null;
           updated_at?: string;
@@ -685,6 +691,7 @@ export type Database = {
       conversations: {
         Row: {
           attendance_state: Database["public"]["Enums"]["attendance_state"];
+          channel: string;
           clinic_id: string;
           closed_at: string | null;
           contact_id: string | null;
@@ -703,6 +710,7 @@ export type Database = {
         ComputedFields: never;
         Insert: {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
+          channel?: string;
           clinic_id: string;
           closed_at?: string | null;
           contact_id?: string | null;
@@ -720,6 +728,7 @@ export type Database = {
         };
         Update: {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
+          channel?: string;
           clinic_id?: string;
           closed_at?: string | null;
           contact_id?: string | null;
@@ -989,6 +998,70 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      instagram_accounts: {
+        Row: {
+          clinic_id: string;
+          connected_at: string;
+          connected_by: string | null;
+          ig_user_id: string;
+          last_error: string | null;
+          name: string;
+          reply_comments: boolean;
+          status: string;
+          token_expires_at: string | null;
+          token_refreshed_at: string;
+          token_secret_id: string | null;
+          updated_at: string;
+          username: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          clinic_id: string;
+          connected_at?: string;
+          connected_by?: string | null;
+          ig_user_id: string;
+          last_error?: string | null;
+          name?: string;
+          reply_comments?: boolean;
+          status?: string;
+          token_expires_at?: string | null;
+          token_refreshed_at?: string;
+          token_secret_id?: string | null;
+          updated_at?: string;
+          username?: string;
+        };
+        Update: {
+          clinic_id?: string;
+          connected_at?: string;
+          connected_by?: string | null;
+          ig_user_id?: string;
+          last_error?: string | null;
+          name?: string;
+          reply_comments?: boolean;
+          status?: string;
+          token_expires_at?: string | null;
+          token_refreshed_at?: string;
+          token_secret_id?: string | null;
+          updated_at?: string;
+          username?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "instagram_accounts_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: true;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "instagram_accounts_connected_by_fkey";
+            columns: ["connected_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -1570,10 +1643,12 @@ export type Database = {
         Args: { p_clinic_id: string };
         Returns: {
           attendance_state: Database["public"]["Enums"]["attendance_state"];
+          channel: string;
           contact_id: string | null;
           contact_name: string | null;
           contact_phone: string;
           id: number;
+          instagram_username: string | null;
           last_message: string | null;
           last_message_at: string;
           last_patient_message_at: string | null;
@@ -1604,7 +1679,7 @@ export type Database = {
           failures: number;
           id: number;
           opted_out_at: string | null;
-          phone: string;
+          phone: string | null;
           reason: string;
           source: string;
         }[];
@@ -1626,6 +1701,14 @@ export type Database = {
         Args: { p_clinic_id: string; p_name?: string; p_phone: string };
         Returns: string;
       };
+      ensure_instagram_contact: {
+        Args: {
+          p_clinic_id: string;
+          p_instagram_id: string;
+          p_username?: string;
+        };
+        Returns: string;
+      };
       funnel_stats: {
         Args: { p_clinic_id: string; p_from: string; p_to: string };
         Returns: Json;
@@ -1640,6 +1723,7 @@ export type Database = {
         Args: { p_account_id: string };
         Returns: string;
       };
+      get_instagram_token: { Args: { p_clinic_id: string }; Returns: string };
       idle_conversations: {
         Args: { p_default_hours: number; p_limit: number };
         Returns: { clinic_id: string; id: number; last_message_at: string }[];
@@ -1652,6 +1736,10 @@ export type Database = {
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_clinic_member: { Args: { p_clinic_id: string }; Returns: boolean };
       launch_status: { Args: { p_cron_secret: string }; Returns: Json };
+      link_instagram_phone: {
+        Args: { p_contact_id: string; p_phone: string };
+        Returns: boolean;
+      };
       pgp_armor_headers: {
         Args: { "": string };
         Returns: Record<string, unknown>[];
@@ -1681,6 +1769,10 @@ export type Database = {
       set_cron_app_url: { Args: { p_url: string }; Returns: undefined };
       set_google_refresh_token: {
         Args: { p_account_id: string; p_token: string };
+        Returns: undefined;
+      };
+      set_instagram_token: {
+        Args: { p_clinic_id: string; p_token: string };
         Returns: undefined;
       };
       shares_clinic_with: { Args: { p_user_id: string }; Returns: boolean };

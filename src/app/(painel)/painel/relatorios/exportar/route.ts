@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("conversations")
     .select(
-      "contact_phone, status, attendance_state, summary, started_at, last_message_at, closed_at, contact_reasons(name), messages(count)",
+      "contact_phone, channel, status, attendance_state, summary, started_at, last_message_at, closed_at, contact_reasons(name), contacts(instagram_username), messages(count)",
     )
     .eq("clinic_id", clinic.id)
     .gte("started_at", `${from}T00:00:00-03:00`)
@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
   }
 
   const header = [
-    "Telefone",
+    "Canal",
+    "Telefone ou Instagram",
     "Status",
     "Quem respondia",
     "Motivo do contato",
@@ -75,7 +76,12 @@ export async function GET(request: NextRequest) {
   ];
   const lines = data.map((c) =>
     [
-      c.contact_phone,
+      c.channel === "instagram" ? "Instagram" : "WhatsApp",
+      c.channel === "instagram"
+        ? c.contacts?.instagram_username
+          ? `@${c.contacts.instagram_username}`
+          : ""
+        : c.contact_phone,
       STATUS[c.status],
       ATTENDANCE[c.attendance_state],
       c.contact_reasons?.name ??

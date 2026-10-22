@@ -7,6 +7,7 @@ import {
   FollowUpsManager,
   type FollowUpItem,
 } from "@/components/painel/follow-ups-manager";
+import { contactHandle } from "@/lib/format";
 import { getPanelContext } from "@/lib/painel/context";
 
 export const metadata: Metadata = { title: "Retomadas" };
@@ -48,7 +49,7 @@ async function FollowUps() {
     supabase
       .from("follow_ups")
       .select(
-        "id, due_at, source, reason, note, attempt, status, sent_at, cancel_reason, last_error, contacts(phone, name, whatsapp_name)",
+        "id, due_at, source, reason, note, attempt, status, sent_at, cancel_reason, last_error, contacts(phone, name, whatsapp_name, instagram_username)",
       )
       .eq("clinic_id", clinic.id)
       .eq("status", "pendente")
@@ -58,7 +59,7 @@ async function FollowUps() {
     supabase
       .from("follow_ups")
       .select(
-        "id, due_at, source, reason, note, attempt, status, sent_at, cancel_reason, last_error, contacts(phone, name, whatsapp_name)",
+        "id, due_at, source, reason, note, attempt, status, sent_at, cancel_reason, last_error, contacts(phone, name, whatsapp_name, instagram_username)",
       )
       .eq("clinic_id", clinic.id)
       .neq("status", "pendente")
@@ -87,7 +88,7 @@ async function FollowUps() {
     sentAt: f.sent_at,
     cancelReason: f.cancel_reason,
     lastError: f.last_error,
-    phone: f.contacts?.phone ?? "",
+    phone: f.contacts ? contactHandle(f.contacts) : "",
     name: f.contacts?.name || f.contacts?.whatsapp_name || null,
   });
 
