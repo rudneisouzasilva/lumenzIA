@@ -1590,8 +1590,11 @@ export type Database = {
           created_at: string;
           current_period_end: string | null;
           current_period_start: string | null;
+          grant_note: string | null;
+          granted_by: string | null;
           grace_until: string | null;
           id: string;
+          is_grant: boolean;
           messages_used_this_period: number;
           mp_preapproval_id: string | null;
           plan_id: number;
@@ -1605,8 +1608,11 @@ export type Database = {
           created_at?: string;
           current_period_end?: string | null;
           current_period_start?: string | null;
+          grant_note?: string | null;
+          granted_by?: string | null;
           grace_until?: string | null;
           id?: string;
+          is_grant?: boolean;
           messages_used_this_period?: number;
           mp_preapproval_id?: string | null;
           plan_id: number;
@@ -1619,8 +1625,11 @@ export type Database = {
           created_at?: string;
           current_period_end?: string | null;
           current_period_start?: string | null;
+          grant_note?: string | null;
+          granted_by?: string | null;
           grace_until?: string | null;
           id?: string;
+          is_grant?: boolean;
           messages_used_this_period?: number;
           mp_preapproval_id?: string | null;
           plan_id?: number;
@@ -1634,6 +1643,13 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "subscriptions_granted_by_fkey";
+            columns: ["granted_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
           {
@@ -1675,6 +1691,7 @@ export type Database = {
           grace_until: string | null;
           id: string;
           is_active: boolean;
+          is_grant: boolean | null;
           last_message_at: string | null;
           members: number;
           message_quota: number | null;

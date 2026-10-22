@@ -50,8 +50,10 @@ export async function startCheckout(planCode: string): Promise<FormResult> {
     return fail("A cobrança não está configurada. Fale com o suporte.");
   }
 
+  // Durante um acesso liberado pela equipe dá para assinar: os dias que faltavam passam para o
+  // plano pago quando o primeiro pagamento é aprovado.
   const subs = await getClinicSubscriptions(supabase, clinic.id);
-  if (pickActiveSubscription(subs)) {
+  if (pickActiveSubscription(subs.filter((s) => !s.is_grant))) {
     return fail("Sua clínica já tem uma assinatura ativa.");
   }
 
@@ -152,6 +154,9 @@ export async function cancelRenewal(): Promise<FormResult> {
     await getClinicSubscriptions(ctx.supabase, ctx.clinic.id),
   );
   if (!active) return fail("Não há assinatura ativa para cancelar.");
+  if (active.is_grant) {
+    return fail("Este acesso foi liberado pela equipe e não se renova.");
+  }
   if (active.status === "cancelled") return { ok: true };
 
   try {

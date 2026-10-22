@@ -6,11 +6,13 @@ import { z } from "zod";
 import { getAdminActionContext } from "@/lib/admin/context";
 import {
   agendaSchema,
+  grantSchema,
   parseActionsConfig,
   templatesSchema,
   whatsappTechSchema,
 } from "@/lib/admin/validation";
 import type { FormResult } from "@/lib/auth/validation";
+import { isSubscriptionActive } from "@/lib/billing/active";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { disconnectWhatsapp } from "@/lib/whatsapp/embedded-signup";
@@ -348,6 +350,95 @@ export async function syncCronAppUrl(): Promise<FormResult> {
     "jobs.endereco",
     `Jobs passam a chamar ${url}.`,
   );
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Libera um plano por alguns dias, sem cobrança (demonstração ou cortesia). Se a clínica já tem
+ * um acesso liberado em vigor, ele é ajustado (plano e novo fim, contado a partir de agora) em vez
+ * de abrir outro, e o uso do ciclo continua o mesmo.
+ */
+export async function grantAccess(input: unknown): Promise<FormResult> {
+  const ctx = await getAdminActionContext();
+  if ("error" in ctx) return fail(ctx.error);
+  const parsed = grantSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Confira os campos.");
+  }
+  const v = parsed.data;
+  const admin = createAdminClient();
+  const now = new Date();
+  const end = new Date(now.getTime() + v.days * 86400_000).toISOString();
+
+  const [{ data: plan }, { data: subs, error: subsError }] = await Promise.all([
+    admin.from("plans").select("name").eq("id", v.planId).maybeSingle(),
+    admin
+      .from("subscriptions")
+      .select("id, is_grant, current_period_end, grace_until")
+      .eq("clinic_id", v.clinicId),
+  ]);
+  if (subsError) return saveError("ler assinaturas", subsError.message);
+  if (!plan) return fail("Plano não encontrado.");
+  const active = (subs ?? []).filter((s) => isSubscriptionActive(s));
+  if (active.some((s) => !s.is_grant)) {
+    return fail("Esta clínica já tem uma assinatura paga em dia.");
+  }
+
+  const grant = {
+    plan_id: v.planId,
+    current_period_end: end,
+    grant_note: v.note || null,
+    granted_by: ctx.user.id,
+  };
+  const current = active.find((s) => s.is_grant);
+  const { error } = current
+    ? await admin.from("subscriptions").update(grant).eq("id", current.id)
+    : await admin.from("subscriptions").insert({
+        ...grant,
+        clinic_id: v.clinicId,
+        status: "authorized",
+        is_grant: true,
+        current_period_start: now.toISOString(),
+      });
+  if (error) return saveError("liberar acesso", error.message);
+
+  await audit(
+    admin,
+    ctx.user.id,
+    v.clinicId,
+    current ? "acesso.ajustado" : "acesso.liberado",
+    `${plan.name} por ${v.days} ${v.days === 1 ? "dia" : "dias"}${v.note ? ` (${v.note})` : ""}.`,
+  );
+  refresh();
+  return { ok: true };
+}
+
+/** Encerra agora um acesso liberado pela equipe. Assinaturas pagas não passam por aqui. */
+export async function endGrant(subscriptionId: unknown): Promise<FormResult> {
+  const ctx = await getAdminActionContext();
+  if ("error" in ctx) return fail(ctx.error);
+  const id = z.uuid().safeParse(subscriptionId);
+  if (!id.success) return fail("Acesso inválido.");
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("subscriptions")
+    .update({ current_period_end: new Date().toISOString() })
+    .eq("id", id.data)
+    .eq("is_grant", true)
+    .gt("current_period_end", new Date().toISOString())
+    .select("clinic_id")
+    .maybeSingle();
+  if (error) return saveError("encerrar acesso", error.message);
+  if (data) {
+    await audit(
+      admin,
+      ctx.user.id,
+      data.clinic_id,
+      "acesso.encerrado",
+      "Acesso liberado encerrado pela equipe.",
+    );
+  }
   refresh();
   return { ok: true };
 }

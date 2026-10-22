@@ -199,7 +199,9 @@ export function ClinicsTable({ rows }: { rows: Row[] }) {
                           ACCESS_STYLES[r.access],
                         )}
                       >
-                        {ACCESS_LABELS[r.access]}
+                        {r.is_grant && r.access === "ativa"
+                          ? "Liberado"
+                          : ACCESS_LABELS[r.access]}
                       </span>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {r.plan_name ?? "—"}

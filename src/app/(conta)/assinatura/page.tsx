@@ -112,12 +112,36 @@ async function SubscriptionView({
         </Notice>
       )}
 
-      {active ? (
+      {active && (
         <ActiveSubscription
           sub={active}
-          canCancel={isOwner && active.status !== "cancelled"}
+          canCancel={
+            isOwner && !active.is_grant && active.status !== "cancelled"
+          }
         />
-      ) : (
+      )}
+      {active?.is_grant && mode && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="font-display text-xl font-semibold">
+              Quer continuar depois do período liberado?
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Você pode assinar agora: os dias que faltam continuam valendo e o
+              primeiro mês pago começa quando eles terminam.
+            </p>
+          </div>
+          <PlanPicker
+            plans={plans}
+            initialCode={planParam}
+            testMode={mode === "mock"}
+            disabledReason={
+              isOwner ? null : "Só a dona da conta pode assinar um plano."
+            }
+          />
+        </div>
+      )}
+      {active ? null : (
         <>
           {pending && (
             <Notice
@@ -170,6 +194,7 @@ function ActiveSubscription({
   const percent = quota ? Math.min(100, Math.round((used / quota) * 100)) : 0;
   const inGrace = isInGracePeriod(sub);
   const cancelled = sub.status === "cancelled";
+  const granted = sub.is_grant;
   const until = inGrace ? sub.grace_until! : sub.current_period_end!;
 
   return (
@@ -197,9 +222,11 @@ function ActiveSubscription({
           )}
           {inGrace
             ? "Pagamento recusado"
-            : cancelled
-              ? "Renovação cancelada"
-              : "Ativa"}
+            : granted
+              ? "Acesso liberado"
+              : cancelled
+                ? "Renovação cancelada"
+                : "Ativa"}
         </span>
       </div>
 
@@ -225,13 +252,19 @@ function ActiveSubscription({
           <p className="text-sm text-muted-foreground">
             {inGrace
               ? "Atendimento garantido até"
-              : cancelled
+              : cancelled || granted
                 ? "Acesso até"
                 : "Próxima renovação"}
           </p>
           <p className="mt-1 font-display text-2xl font-semibold">
             {formatDate(until)}
           </p>
+          {granted && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Liberado pela equipe LumenzIA, sem cobrança. Termina sozinho nessa
+              data.
+            </p>
+          )}
           {inGrace && (
             <p className="mt-2 text-sm text-muted-foreground">
               O Mercado Pago vai tentar cobrar de novo. Confira o cartão

@@ -3,6 +3,8 @@ export const site = {
   name: "LumenzIA",
   whatsappNumber: "5513997379065",
   whatsappLabel: "(13) 99737-9065",
+  /** Recebe pedidos de privacidade e de exclusão de dados (encaminhado para o Gmail pelo ImprovMX). */
+  privacyEmail: "privacidade@lumenzia.com.br",
 };
 
 export function whatsappLink(
