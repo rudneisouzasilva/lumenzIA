@@ -23,6 +23,7 @@ senha e endereço dos jobs) a cada visita.
   9. `20261020000017_booking_fields.sql` (dados pedidos no agendamento)
   10. `20261021000018_notification_channels.sql` (avisos à equipe e lembretes por e-mail)
   11. `20261021000019_instagram.sql` (Instagram: Direct e comentários)
+  12. `20261022000020_clinica_experts.sql` (Clínica Experts conectado pela clínica)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
@@ -150,6 +151,18 @@ Para cada clínica, depois que ela conectar:
 4. **Verificação do Google**: os escopos da agenda são “sensíveis”. Enquanto o app não for
    verificado, só os usuários de teste cadastrados na tela de consentimento conseguem conectar (até 100) e aparece um aviso de app não verificado. Pedir a verificação com um vídeo mostrando o
    botão **Conectar com o Google** em /painel/agenda e o uso da agenda; costuma levar alguns dias.
+
+## 5b1. Clínica Experts (cada clínica conecta a própria chave)
+
+Não precisa configurar nada na Vercel nem criar app: a clínica gera a chave de API no Clínica
+Experts (**Configurações → Integrações**), clica em **Conectar** no cartão do Clínica Experts em
+/painel/agenda e cola a chave. A LumenzIA testa a chave na hora (lista os profissionais), guarda no
+Vault e mostra a escolha de profissionais. Com os profissionais ligados, a clínica liga a opção
+**A assistente usa o Clínica Experts** (isso desliga o Google Agenda, se estava em uso).
+
+- [ ] Testar com uma conta real: conectar, ligar os profissionais e, na conversa de teste do
+      WhatsApp, pedir horários, marcar e cancelar. Se algo falhar, a mensagem completa da API fica
+      nos logs da Vercel com o prefixo `[clinica experts]`.
 
 ## 5b2. Instagram (cada clínica conecta a própria conta)
 
