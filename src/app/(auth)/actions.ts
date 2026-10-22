@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { getAppUrl, safeNextPath } from "@/lib/app-url";
+import { panelRedirect } from "@/lib/auth/panel-access";
 import {
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -60,10 +61,17 @@ export async function signIn(
   if (!isSupabaseConfigured) return notConfigured;
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { ok: false, error: authErrorMessage(error) };
 
-  redirect(safeNextPath(next));
+  // Já manda direto para o lugar certo: o redirect do proxy depois de uma Server Action deixa
+  // a tela presa (a URL fica em /painel com a página de outra rota).
+  const target = safeNextPath(next);
+  const blocked =
+    target === "/painel" || target.startsWith("/painel/")
+      ? await panelRedirect(supabase, data.user.id)
+      : null;
+  redirect(blocked ?? target);
 }
 
 /**

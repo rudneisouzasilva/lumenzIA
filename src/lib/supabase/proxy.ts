@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { panelRedirect } from "@/lib/auth/panel-access";
+
 import type { Database } from "./database.types";
 import {
   isSupabaseConfigured,
@@ -58,7 +60,8 @@ export async function updateSession(request: NextRequest) {
 
   // Não coloque código entre a criação do cliente e esta chamada: é ela que renova o token.
   const { data } = await supabase.auth.getClaims();
-  const loggedIn = Boolean(data?.claims?.sub);
+  const userId = data?.claims?.sub;
+  const loggedIn = Boolean(userId);
   const { pathname, search } = request.nextUrl;
 
   if (!loggedIn && matches(pathname, PRIVATE_PREFIXES)) {
@@ -71,6 +74,12 @@ export async function updateSession(request: NextRequest) {
     const { data: isAdmin } = await supabase.rpc("is_admin");
     if (!isAdmin)
       return redirectKeepingCookies(request, response, "/painel", {});
+  }
+  // Painel da clínica: quem não tem clínica com assinatura ativa nem vê a moldura (sem isso, o
+  // menu aparece por um instante antes de a página mandar para /assinatura ou /admin).
+  if (userId && matches(pathname, ["/painel"])) {
+    const target = await panelRedirect(supabase, userId);
+    if (target) return redirectKeepingCookies(request, response, target, {});
   }
   if (loggedIn && matches(pathname, GUEST_ONLY)) {
     const next = request.nextUrl.searchParams.get("next");
