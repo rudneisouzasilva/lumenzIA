@@ -4,27 +4,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/supabase/database.types";
 
+import { isSubscriptionActive } from "./active";
+
+export { isSubscriptionActive };
+
 type Client = SupabaseClient<Database>;
 
 export type SubscriptionRow =
   Database["public"]["Tables"]["subscriptions"]["Row"] & {
     plans: { code: string; name: string; message_quota: number } | null;
   };
-
-/**
- * O acesso vale enquanto o período pago (ou a tolerância depois de uma cobrança recusada) não
- * acabou. O status não decide nada: uma assinatura cancelada continua valendo até o fim do período.
- */
-export function isSubscriptionActive(
-  sub: Pick<SubscriptionRow, "current_period_end" | "grace_until">,
-  now = Date.now(),
-) {
-  const end = Math.max(
-    sub.current_period_end ? Date.parse(sub.current_period_end) : 0,
-    sub.grace_until ? Date.parse(sub.grace_until) : 0,
-  );
-  return end > now;
-}
 
 /** A clínica da pessoa logada (a primeira, se for de mais de uma) e o papel dela. */
 export async function getMyClinic(supabase: Client, userId: string) {

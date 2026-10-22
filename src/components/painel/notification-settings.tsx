@@ -216,7 +216,7 @@ export function NotificationSettingsForm({
           ))}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5">
+          <div className="grid content-start gap-1.5">
             <Label htmlFor="staff-phone">WhatsApp da equipe</Label>
             <Input
               id="staff-phone"
@@ -231,7 +231,7 @@ export function NotificationSettingsForm({
               Um número diferente do que a assistente usa.
             </p>
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid content-start gap-1.5">
             <Label htmlFor="staff-email">E-mail da equipe</Label>
             <Input
               id="staff-email"
