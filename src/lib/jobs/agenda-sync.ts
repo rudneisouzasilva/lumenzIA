@@ -182,6 +182,11 @@ async function syncClinic(admin: Admin, integration: Integration) {
   return { synced, cancelled: cancelled.length, erro: null };
 }
 
+/** Sincroniza uma clínica agora (ex.: o Clínica Experts avisou que um agendamento mudou). */
+export async function syncClinicAgenda(integration: Integration) {
+  return syncClinic(createAdminClient(), integration);
+}
+
 /** Sincroniza todas as clínicas com a agenda conectada e a assistente ligada (1x por dia). */
 export async function runAgendaSync(budgetMs: number) {
   const admin = createAdminClient();

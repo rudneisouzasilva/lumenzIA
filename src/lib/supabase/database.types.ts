@@ -372,8 +372,10 @@ export type Database = {
           connected_at: string;
           connected_by: string | null;
           last_error: string | null;
+          last_webhook_at: string | null;
           status: string;
           updated_at: string;
+          webhook_token: string;
         };
         ComputedFields: never;
         Insert: {
@@ -382,8 +384,10 @@ export type Database = {
           connected_at?: string;
           connected_by?: string | null;
           last_error?: string | null;
+          last_webhook_at?: string | null;
           status?: string;
           updated_at?: string;
+          webhook_token?: string;
         };
         Update: {
           api_key_secret_id?: string | null;
@@ -391,8 +395,10 @@ export type Database = {
           connected_at?: string;
           connected_by?: string | null;
           last_error?: string | null;
+          last_webhook_at?: string | null;
           status?: string;
           updated_at?: string;
+          webhook_token?: string;
         };
         Relationships: [
           {
