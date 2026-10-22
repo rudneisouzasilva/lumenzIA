@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { formatDate, formatPhone, isoDateInBrasilia } from "@/lib/format";
+import { formatDate, isoDateInBrasilia } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { PanelCard } from "./page";
@@ -38,6 +38,7 @@ export type FollowUpItem = {
   sentAt: string | null;
   cancelReason: string | null;
   lastError: string | null;
+  /** Telefone formatado, ou o @ do Instagram. */
   phone: string;
   name: string | null;
 };
@@ -78,6 +79,7 @@ const CANCEL_LABEL: Record<string, string> = {
   agendou: "a pessoa agendou",
   descadastro: "a pessoa pediu para não receber mensagens",
   equipe: "cancelada pela equipe",
+  sem_whatsapp: "a pessoa só falou pelo Instagram e não informou o WhatsApp",
 };
 
 const daysLabel = (d: number) => (d === 1 ? "1 dia" : `${d} dias`);
@@ -193,11 +195,9 @@ function StatusBadge({ status }: { status: FollowUpItem["status"] }) {
 function Who({ item }: { item: FollowUpItem }) {
   return (
     <div className="min-w-0">
-      <p className="truncate font-medium">
-        {item.name ?? formatPhone(item.phone)}
-      </p>
+      <p className="truncate font-medium">{item.name ?? item.phone}</p>
       <p className="mt-0.5 truncate text-xs text-muted-foreground">
-        {item.name ? `${formatPhone(item.phone)} · ` : ""}
+        {item.name ? `${item.phone} · ` : ""}
         {SOURCE_LABEL[item.source]}
         {item.attempt > 1 ? ` · ${item.attempt}ª tentativa` : ""}
         {item.reason ? ` · ${item.reason}` : ""}

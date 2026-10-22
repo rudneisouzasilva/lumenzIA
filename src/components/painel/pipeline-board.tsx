@@ -33,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatPhone, formatPrice, formatRelative } from "@/lib/format";
+import { formatPrice, formatRelative } from "@/lib/format";
 import {
   AUTO_RULE_LABEL,
   STAGE_COLOR_CLASS,
@@ -58,7 +58,8 @@ export type BoardStage = {
 
 export type BoardContact = {
   id: string;
-  phone: string;
+  /** Telefone formatado, ou o @ do Instagram. */
+  handle: string;
   name: string | null;
   savedName: string;
   stageId: string | null;
@@ -327,11 +328,11 @@ function ContactCard({
       )}
     >
       <p className="truncate text-sm font-medium">
-        {contact.name ?? formatPhone(contact.phone)}
+        {contact.name ?? contact.handle}
       </p>
       {contact.name && (
         <p className="truncate text-xs text-muted-foreground">
-          {formatPhone(contact.phone)}
+          {contact.handle}
         </p>
       )}
       {contact.lastSummary && (
@@ -374,7 +375,7 @@ function LostReasonDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogTitle>Por que perdeu?</DialogTitle>
         <DialogDescription>
-          {move.contact.name ?? formatPhone(move.contact.phone)} vai para &quot;
+          {move.contact.name ?? move.contact.handle} vai para &quot;
           {move.stage.name}&quot;. O motivo entra nos indicadores.
         </DialogDescription>
         <select
@@ -476,9 +477,9 @@ function ContactDialog({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <DialogTitle>{contact.name ?? formatPhone(contact.phone)}</DialogTitle>
+        <DialogTitle>{contact.name ?? contact.handle}</DialogTitle>
         <DialogDescription>
-          {formatPhone(contact.phone)} · último contato{" "}
+          {contact.handle} · último contato{" "}
           {formatRelative(contact.lastContactAt)}
           {contact.optedOut &&
             " · pediu para não receber mensagens automáticas"}

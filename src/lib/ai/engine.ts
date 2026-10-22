@@ -57,7 +57,8 @@ export type AgendaMode =
   | {
       kind: "live";
       integration: Integration;
-      contactPhone: string;
+      /** null no Instagram enquanto a pessoa não informou o WhatsApp dela. */
+      contactPhone: string | null;
       /** O contato desta conversa, para reaproveitar os dados que a pessoa já informou. */
       contactId: string | null;
       conversationId: number;
@@ -197,8 +198,72 @@ function patientDataBlock(
 ) {
   if (action !== "criar_agendamento") return null;
   const own =
-    agenda.kind !== "live" || samePhone(args.telefone, agenda.contactPhone);
+    agenda.kind !== "live" ||
+    agenda.contactPhone === null ||
+    samePhone(args.telefone, agenda.contactPhone);
   return preparePatientData(fields, args, own ? known : {});
+}
+
+/**
+ * A agenda no Instagram, quando ainda não se sabe o WhatsApp da pessoa. Consultar e cancelar os
+ * agendamentos dela não dá (qualquer um poderia digitar o número de outra pessoa); agendar pede o
+ * número, que passa a ser o do contato.
+ */
+async function withoutKnownPhone(
+  agenda: Extract<AgendaMode, { kind: "live" }>,
+  context: AssistantContext,
+  fields: BookingFields,
+  known: PatientData,
+  action: string,
+  args: Record<string, unknown>,
+): Promise<AgendaResult> {
+  if (
+    action === "consultar_agendamentos" ||
+    action === "cancelar_agendamento"
+  ) {
+    return {
+      erro: "Pelo Instagram não é possível consultar nem cancelar agendamentos. Peça para a pessoa falar pelo WhatsApp da clínica, ou diga que a equipe vai ajudar.",
+    };
+  }
+  if (
+    action === "criar_agendamento" &&
+    !normalizePhone(String(args.telefone ?? ""))
+  ) {
+    return {
+      erro: "Falta o WhatsApp da pessoa. Peça o número com DDD e chame a ferramenta de novo com ele no campo telefone.",
+    };
+  }
+  const blocked =
+    patientDataBlock(fields, known, agenda, action, args) ??
+    (await evaluationBlock(
+      agenda.integration.clinic_id,
+      context,
+      action,
+      args,
+    ));
+  if (blocked) return blocked;
+  if (action === "criar_agendamento" && agenda.contactId) {
+    // Antes de agendar: assim o agendamento (e o lembrete) já fica com este contato.
+    const phone = normalizePhone(String(args.telefone));
+    const { error } = await createAdminClient().rpc("link_instagram_phone", {
+      p_contact_id: agenda.contactId,
+      p_phone: phone ?? "",
+    });
+    if (error) console.error("[instagram] telefone do contato:", error.message);
+    // Daqui em diante, nesta conversa, a pessoa é este número (com o 55, como no WhatsApp).
+    if (phone) {
+      agenda.contactPhone = phone;
+      args.telefone = phone;
+    }
+  }
+  const result = await callAgenda(
+    agenda.integration,
+    context.services,
+    action,
+    args,
+    agenda.conversationId,
+  );
+  return result;
 }
 
 /**
@@ -213,8 +278,10 @@ export async function generateReply({
   followUp = null,
   sentImageIds = [],
   previousSummaries = [],
+  channel = "whatsapp",
 }: {
   context: AssistantContext;
+  channel?: "whatsapp" | "instagram";
   history: ChatTurn[];
   agenda: AgendaMode;
   followUp?: FollowUpMode;
@@ -230,6 +297,8 @@ export async function generateReply({
     followUpEnabled: followUp !== null,
     sentImageIds,
     previousSummaries,
+    channel,
+    phoneKnown: !(agenda?.kind === "live" && agenda.contactPhone === null),
   });
   const tools: ToolDeclaration[] = [
     ...(agenda ? agendaTools(fields) : []),
@@ -268,6 +337,16 @@ export async function generateReply({
           : { erro: "Ferramenta indisponível." };
       } else if (!agenda) {
         result = { erro: "A agenda não está conectada nesta clínica." };
+      } else if (agenda.kind === "live" && agenda.contactPhone === null) {
+        // Instagram, sem o WhatsApp da pessoa: só dá para ver horários e agendar informando o número.
+        result = await withoutKnownPhone(
+          agenda,
+          context,
+          fields,
+          known,
+          name,
+          args,
+        );
       } else if (agenda.kind === "live") {
         // Consultar e cancelar valem só para o próprio contato, seja qual for o número pedido.
         if (

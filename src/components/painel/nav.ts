@@ -2,6 +2,7 @@ import {
   BarChart3,
   BellRing,
   Brain,
+  Camera,
   CalendarClock,
   CalendarDays,
   CalendarSync,
@@ -180,6 +181,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
         label: "WhatsApp",
         icon: Smartphone,
         keywords: "conectar número meta facebook embedded",
+      },
+      {
+        href: "/painel/instagram",
+        label: "Instagram",
+        icon: Camera,
+        keywords: "conectar direct dm comentários meta",
       },
       {
         href: "/painel/conta",

@@ -24,6 +24,17 @@ export function formatPhone(phone: string) {
   return br ? `+55 ${br[1]} ${br[2]}-${br[3]}` : `+${digits}`;
 }
 
+/** Como mostrar o contato: o telefone, ou o @ do Instagram de quem ainda não informou o número. */
+export function contactHandle(contact: {
+  phone: string | null;
+  instagram_username?: string | null;
+}) {
+  if (contact.phone) return formatPhone(contact.phone);
+  return contact.instagram_username
+    ? `@${contact.instagram_username}`
+    : "Instagram";
+}
+
 /** 19/10, 14:30 */
 export function formatDateTime(value: string | Date) {
   return new Intl.DateTimeFormat("pt-BR", {

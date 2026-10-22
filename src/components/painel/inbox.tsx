@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ArrowLeft,
   Bot,
+  Camera,
   CheckCircle2,
   Hand,
   Headset,
@@ -49,13 +50,18 @@ type OpenRow =
 type ClosedRow = {
   id: number;
   contact_phone: string;
+  channel: string;
   started_at: string;
   last_message_at: string;
   status: Database["public"]["Enums"]["conversation_status"];
   summary: string | null;
   imported: boolean;
   contact_reasons: { name: string } | null;
-  contacts: { name: string; whatsapp_name: string } | null;
+  contacts: {
+    name: string;
+    whatsapp_name: string;
+    instagram_username: string;
+  } | null;
 };
 type Message = {
   id: number;
@@ -106,6 +112,7 @@ const WINDOW_MS = 24 * 3600_000;
 export function Inbox({
   clinicId,
   whatsappConnected,
+  instagramConnected = false,
   initialConversationId,
   images,
   templates,
@@ -114,6 +121,7 @@ export function Inbox({
 }: {
   clinicId: string;
   whatsappConnected: boolean;
+  instagramConnected?: boolean;
   initialConversationId: number | null;
   images: ClinicImage[];
   templates: ApprovedTemplate[];
@@ -227,7 +235,7 @@ export function Inbox({
     void client
       .from("conversations")
       .select(
-        "id, contact_phone, started_at, last_message_at, status, summary, imported, contact_reasons(name), contacts(name, whatsapp_name)",
+        "id, contact_phone, channel, started_at, last_message_at, status, summary, imported, contact_reasons(name), contacts(name, whatsapp_name, instagram_username)",
       )
       .eq("clinic_id", clinicId)
       .neq("status", "aberta")
@@ -304,7 +312,7 @@ export function Inbox({
         onOpenChange={setNewOpen}
         {...templateProps}
       />
-      {!whatsappConnected && (
+      {!whatsappConnected && !instagramConnected && (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
           O WhatsApp da clínica ainda não está conectado. As conversas aparecem
           aqui assim que o número for ligado; até lá, dá para assumir e
@@ -445,6 +453,7 @@ export function Inbox({
               loading={loadingMessages}
               images={images}
               whatsappConnected={whatsappConnected}
+              instagramConnected={instagramConnected}
               now={now}
               compact={compact}
               templateProps={templateProps}
@@ -476,9 +485,20 @@ export function Inbox({
 /** Nome do contato (o digitado pela equipe vale mais que o do perfil) ou o telefone. */
 function contactLabel(
   phone: string,
-  contact: { name: string; whatsapp_name: string } | null,
+  channel: string,
+  contact: ClosedRow["contacts"],
 ) {
-  return contact?.name || contact?.whatsapp_name || formatPhone(phone);
+  return (
+    contact?.name ||
+    contact?.whatsapp_name ||
+    handle(phone, channel, contact?.instagram_username)
+  );
+}
+
+/** O telefone, ou o @ de quem fala pelo Instagram (lá o "telefone" é o id da pessoa). */
+function handle(phone: string, channel: string, username?: string | null) {
+  if (channel !== "instagram") return formatPhone(phone);
+  return username ? `@${username}` : "Instagram";
 }
 
 function ListSkeleton() {
@@ -509,9 +529,11 @@ function ListEmpty({ text }: { text: string }) {
 function Avatar({
   phone,
   state,
+  instagram = false,
 }: {
   phone: string;
   state?: keyof typeof STATE;
+  instagram?: boolean;
 }) {
   return (
     <span
@@ -519,7 +541,13 @@ function Avatar({
         "relative grid size-10 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground",
       )}
     >
-      {phone.slice(-2)}
+      {instagram ? <Camera className="size-4" /> : phone.slice(-2)}
+      {instagram && (
+        <span
+          className="absolute -bottom-0.5 -left-0.5 size-3 rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] ring-2 ring-card"
+          title="Instagram"
+        />
+      )}
       {state === "pendente" && (
         <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-amber-500 ring-2 ring-card" />
       )}
@@ -574,11 +602,20 @@ function OpenList({
                   selectedId === r.id && "bg-primary/8",
                 )}
               >
-                <Avatar phone={r.contact_phone} state={r.attendance_state} />
+                <Avatar
+                  phone={r.contact_phone}
+                  state={r.attendance_state}
+                  instagram={r.channel === "instagram"}
+                />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-sm font-medium">
-                      {r.contact_name || formatPhone(r.contact_phone)}
+                      {r.contact_name ||
+                        handle(
+                          r.contact_phone,
+                          r.channel,
+                          r.instagram_username,
+                        )}
                     </span>
                     <span className="shrink-0 text-[11px] text-muted-foreground">
                       {formatRelative(r.last_message_at)}
@@ -633,11 +670,14 @@ function ClosedList({
               selectedId === r.id && "bg-primary/8",
             )}
           >
-            <Avatar phone={r.contact_phone} />
+            <Avatar
+              phone={r.contact_phone}
+              instagram={r.channel === "instagram"}
+            />
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-sm font-medium">
-                  {contactLabel(r.contact_phone, r.contacts)}
+                  {contactLabel(r.contact_phone, r.channel, r.contacts)}
                 </span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
                   {formatRelative(r.last_message_at)}
@@ -694,6 +734,7 @@ function ConversationView({
   loading,
   images,
   whatsappConnected,
+  instagramConnected,
   now,
   compact,
   templateProps,
@@ -708,6 +749,7 @@ function ConversationView({
   loading: boolean;
   images: ClinicImage[];
   whatsappConnected: boolean;
+  instagramConnected: boolean;
   now: number;
   compact: boolean;
   templateProps: {
@@ -725,6 +767,16 @@ function ConversationView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const phone = open?.contact_phone ?? closed?.contact_phone ?? "";
+  const instagram = (open?.channel ?? closed?.channel) === "instagram";
+  const who = phone
+    ? handle(
+        phone,
+        instagram ? "instagram" : "whatsapp",
+        open?.instagram_username ?? closed?.contacts?.instagram_username,
+      )
+    : null;
+  // No Instagram não há mensagem pronta: a clínica só responde dentro das 24 horas.
+  const canTemplate = whatsappConnected && !instagram;
   const name =
     open?.contact_name ||
     closed?.contacts?.name ||
@@ -777,13 +829,13 @@ function ConversationView({
         >
           <ArrowLeft />
         </Button>
-        <Avatar phone={phone || "··"} />
+        <Avatar phone={phone || "··"} instagram={instagram} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">
-            {name ?? (phone ? formatPhone(phone) : "Conversa")}
-            {name && phone && (
+            {name ?? who ?? "Conversa"}
+            {name && who && (
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {formatPhone(phone)}
+                {who}
               </span>
             )}
           </p>
@@ -908,16 +960,20 @@ function ConversationView({
           conversationId={conversationId}
           images={images}
           onTemplate={
-            whatsappConnected && windowClosed
-              ? () => setTemplateOpen(true)
-              : null
+            canTemplate && windowClosed ? () => setTemplateOpen(true) : null
           }
           disabledReason={
-            !whatsappConnected
-              ? "O WhatsApp da clínica ainda não está conectado."
-              : windowClosed
-                ? "Passaram 24 horas desde a última mensagem do paciente. Para escrever agora, use uma mensagem pronta aprovada pela Meta."
-                : null
+            instagram
+              ? !instagramConnected
+                ? "O Instagram da clínica não está conectado."
+                : windowClosed
+                  ? "Passaram 24 horas desde a última mensagem da pessoa. O Instagram só deixa a clínica responder quando ela escrever de novo."
+                  : null
+              : !whatsappConnected
+                ? "O WhatsApp da clínica ainda não está conectado."
+                : windowClosed
+                  ? "Passaram 24 horas desde a última mensagem do paciente. Para escrever agora, use uma mensagem pronta aprovada pela Meta."
+                  : null
           }
           aiActive={open.attendance_state !== "equipe"}
           onSent={() => {
@@ -931,7 +987,7 @@ function ConversationView({
             <MessageSquareOff className="size-4" />
             Conversa encerrada.
           </span>
-          {whatsappConnected && phone && (
+          {canTemplate && phone && (
             <Button
               size="sm"
               variant="outline"
@@ -1000,7 +1056,7 @@ function Bubble({ message: m }: { message: Message }) {
 /** Quem da clínica escreveu e por onde. */
 function staffLabel(m: Message) {
   const who = m.profiles?.full_name || "Equipe";
-  if (m.origin === "celular") return "Equipe · pelo celular";
+  if (m.origin === "celular") return "Equipe · pelo app";
   if (m.origin === "historico") return "Clínica · histórico do celular";
   if (m.origin === "template") return `${who} · mensagem pronta`;
   return who;

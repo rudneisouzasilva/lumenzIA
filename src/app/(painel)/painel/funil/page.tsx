@@ -9,6 +9,7 @@ import {
   type BoardStage,
 } from "@/components/painel/pipeline-board";
 import { parsePatientData, patientDataLines } from "@/lib/booking-fields";
+import { contactHandle } from "@/lib/format";
 import { getPanelContext } from "@/lib/painel/context";
 import type { StageColor, StageKind } from "@/lib/painel/pipeline";
 
@@ -18,7 +19,7 @@ export const metadata: Metadata = { title: "Funil" };
 const PER_STAGE = 50;
 
 const CONTACT_COLUMNS =
-  "id, phone, name, whatsapp_name, stage_id, stage_changed_at, owner_id, estimated_value_cents, notes, lost_reason_id, last_contact_at, opted_out_at, patient_data, conversations!conversations_contact_id_fkey(id, last_message_at, summary)";
+  "id, phone, instagram_username, name, whatsapp_name, stage_id, stage_changed_at, owner_id, estimated_value_cents, notes, lost_reason_id, last_contact_at, opted_out_at, patient_data, conversations!conversations_contact_id_fkey(id, last_message_at, summary)";
 
 export default function PipelinePage({
   searchParams,
@@ -115,7 +116,7 @@ async function Board({
   const contacts: BoardContact[] = columns.flatMap((c) =>
     c.contacts.map((ct) => ({
       id: ct.id,
-      phone: ct.phone,
+      handle: contactHandle(ct),
       name: ct.name || ct.whatsapp_name || null,
       savedName: ct.name,
       stageId: ct.stage_id,

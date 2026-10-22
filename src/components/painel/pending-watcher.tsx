@@ -74,6 +74,7 @@ export function PendingWatcher({ clinicId }: { clinicId: string }) {
             const row = payload.new as {
               id?: number;
               contact_phone?: string;
+              channel?: string;
               attendance_state?: string;
               status?: string;
               needs_human_at?: string | null;
@@ -90,9 +91,12 @@ export function PendingWatcher({ clinicId }: { clinicId: string }) {
             notified.add(key);
             if (onInbox.current) return;
             toast.warning("Um paciente precisa de atendimento", {
-              description: row.contact_phone
-                ? formatPhone(row.contact_phone)
-                : undefined,
+              description:
+                row.channel === "instagram"
+                  ? "Pelo Instagram"
+                  : row.contact_phone
+                    ? formatPhone(row.contact_phone)
+                    : undefined,
               duration: 15_000,
               action: {
                 label: "Abrir",

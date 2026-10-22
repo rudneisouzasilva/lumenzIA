@@ -150,6 +150,12 @@ async function send(admin: Admin, ready: ClinicReady, due: Due) {
     await cancel(admin, due.id, "descadastro");
     return "cancelled";
   }
+  // Contato só do Instagram, que nunca informou o WhatsApp: não há por onde retomar.
+  const phone = due.phone;
+  if (!phone) {
+    await cancel(admin, due.id, "sem_whatsapp");
+    return "cancelled";
+  }
   if (!ready.ok) return "skipped";
   if (await hasOpenConversation(admin, ready.clinic, due)) return "skipped";
 
@@ -172,7 +178,7 @@ async function send(admin: Admin, ready: ClinicReady, due: Due) {
 
   let text: string;
   try {
-    text = await sendTemplateMessage(ready.sender, due.phone, template, [
+    text = await sendTemplateMessage(ready.sender, phone, template, [
       ready.clinic.assistant_name,
       ready.clinic.name,
       due.reason.trim() || DEFAULT_TOPIC,
@@ -210,7 +216,7 @@ async function send(admin: Admin, ready: ClinicReady, due: Due) {
     .from("conversations")
     .insert({
       clinic_id: due.clinic_id,
-      contact_phone: due.phone,
+      contact_phone: phone,
       attendance_state: "ia",
       follow_up_id: due.id,
       last_message_at: sentAt,
@@ -224,7 +230,7 @@ async function send(admin: Admin, ready: ClinicReady, due: Due) {
       .insert({
         clinic_id: due.clinic_id,
         conversation_id: conversation.id,
-        contact_phone: due.phone,
+        contact_phone: phone,
         role: "model",
         origin: "retomada",
         content: text || `Mensagem pronta "${template.name}" enviada.`,

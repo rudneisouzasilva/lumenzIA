@@ -3,6 +3,8 @@
 import { z } from "zod";
 
 import { normalizePhone } from "@/lib/format";
+import { getInstagramSender } from "@/lib/instagram/account";
+import { sendInstagramImage, sendInstagramText } from "@/lib/instagram/api";
 import { closeConversation } from "@/lib/jobs/close-conversation";
 import { getActionContext } from "@/lib/painel/context";
 import { publicImageUrl } from "@/lib/storage";
@@ -15,7 +17,10 @@ import { sendTemplateMessage } from "@/lib/whatsapp/templates";
 
 export type AttendanceResult = { ok: true } | { ok: false; error: string };
 
-/** Fora desta janela depois da última mensagem do paciente, o WhatsApp só aceita templates. */
+/**
+ * Fora desta janela depois da última mensagem do paciente, o WhatsApp só aceita templates (e o
+ * Instagram não aceita nada).
+ */
 const WHATSAPP_WINDOW_MS = 24 * 3600_000;
 
 const idSchema = z.number().int().positive();
@@ -69,8 +74,8 @@ export async function returnToAi(conversationId: unknown) {
 }
 
 /**
- * Resposta de alguém da equipe pelo número de WhatsApp da clínica. Assume a conversa (a IA fica
- * quieta) e grava quem enviou.
+ * Resposta de alguém da equipe pelo WhatsApp ou pelo Instagram da clínica (o canal da conversa).
+ * Assume a conversa (a IA fica quieta) e grava quem enviou.
  */
 export async function sendStaffReply(
   input: unknown,
@@ -87,7 +92,7 @@ export async function sendStaffReply(
   // Lido como a pessoa logada: se a conversa não é da clínica dela, não aparece.
   const { data: conversation } = await ctx.supabase
     .from("conversations")
-    .select("id, clinic_id, contact_phone, status")
+    .select("id, clinic_id, contact_phone, status, channel")
     .eq("id", conversationId)
     .eq("clinic_id", ctx.clinic.id)
     .maybeSingle();
@@ -113,16 +118,47 @@ export async function sendStaffReply(
       : Promise.resolve({ data: null }),
   ]);
   if (imageId && !image) return fail("Foto não encontrada.");
+  const instagram = conversation.channel === "instagram";
   if (
     !lastPatient ||
     Date.now() - Date.parse(lastPatient.created_at) > WHATSAPP_WINDOW_MS
   ) {
     return fail(
-      "Já se passaram 24 horas desde a última mensagem do paciente. O WhatsApp só deixa a clínica escrever de novo quando ele mandar uma mensagem.",
+      `Já se passaram 24 horas desde a última mensagem do paciente. O ${instagram ? "Instagram" : "WhatsApp"} só deixa a clínica escrever de novo quando ele mandar uma mensagem.`,
     );
   }
 
   const admin = createAdminClient();
+  if (instagram) {
+    let igSender;
+    try {
+      igSender = await getInstagramSender(admin, ctx.clinic.id);
+    } catch (e) {
+      console.error("[atendimento] token do Instagram:", (e as Error).message);
+    }
+    if (!igSender) {
+      return fail(
+        "O Instagram da clínica não está conectado, então não dá para enviar daqui.",
+      );
+    }
+    try {
+      if (message)
+        await sendInstagramText(igSender, conversation.contact_phone, message);
+      if (image)
+        await sendInstagramImage(
+          igSender,
+          conversation.contact_phone,
+          publicImageUrl(image.storage_path),
+        );
+    } catch (e) {
+      console.error("[atendimento] envio Instagram:", (e as Error).message);
+      return fail(
+        "O Instagram recusou a mensagem. Tente de novo em instantes.",
+      );
+    }
+    return saveStaffReply(ctx, conversation, message, image);
+  }
+
   let sender;
   try {
     sender = await getClinicSender(admin, ctx.clinic.id);
@@ -148,7 +184,19 @@ export async function sendStaffReply(
     return fail("O WhatsApp recusou a mensagem. Tente de novo em instantes.");
   }
 
+  return saveStaffReply(ctx, conversation, message, image);
+}
+
+/** Grava a resposta já enviada e passa a conversa para a equipe. */
+async function saveStaffReply(
+  ctx: { clinic: { id: string }; user: { id: string } },
+  conversation: { id: number; contact_phone: string },
+  message: string,
+  image: { id: string } | null,
+): Promise<AttendanceResult> {
   // Já foi para o paciente: daqui para frente, falhas só vão para o log.
+  const admin = createAdminClient();
+  const conversationId = conversation.id;
   const now = new Date().toISOString();
   const [saved, updated] = await Promise.all([
     admin.from("messages").insert({
@@ -235,11 +283,18 @@ export async function sendTemplateToContact(
   if (v.conversationId) {
     const { data: conversation } = await ctx.supabase
       .from("conversations")
-      .select("contact_phone")
+      .select("contact_phone, channel")
       .eq("id", v.conversationId)
       .eq("clinic_id", ctx.clinic.id)
       .maybeSingle();
     if (!conversation) return { ok: false, error: "Conversa não encontrada." };
+    if (conversation.channel === "instagram") {
+      return {
+        ok: false,
+        error:
+          "Mensagens prontas são do WhatsApp. No Instagram, a clínica só responde quando a pessoa escreve.",
+      };
+    }
     phone = conversation.contact_phone;
   }
   if (!phone) {

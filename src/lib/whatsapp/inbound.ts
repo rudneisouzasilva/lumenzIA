@@ -41,7 +41,7 @@ const HISTORY_SIZE = 20;
 // Resumos das últimas conversas com a mesma pessoa, para a IA dar continuidade.
 const PREVIOUS_SUMMARIES = 3;
 // A mensagem inteira, sem mais nada: "SAIR", "parar", "stop"...
-const OPT_OUT =
+export const OPT_OUT =
   /^(sair|parar|stop|pare|descadastrar|cancelar inscri[cç][aã]o)[.!]*$/i;
 
 type Admin = SupabaseClient<Database>;
@@ -229,23 +229,46 @@ async function aiGate(
     : null;
   if (!sender || !clinic.is_active) return { ok: false, sender };
 
+  const subscriptionId = await subscriptionWithQuota(admin, clinic.id, sender);
+  return subscriptionId
+    ? { ok: true, sender, subscriptionId }
+    : { ok: false, sender };
+}
+
+/**
+ * A assinatura em dia e com cota de mensagens, ou null (a assistente não responde). Vale para
+ * todos os canais: a cota é uma só. `alertSender` é o WhatsApp da clínica, para o aviso de cota.
+ */
+export async function subscriptionWithQuota(
+  admin: Admin,
+  clinicId: string,
+  alertSender: Sender | null,
+): Promise<string | null> {
   const { data: subs } = await admin
     .from("subscriptions")
     .select("*, plans(code, name, message_quota)")
-    .eq("clinic_id", clinic.id)
+    .eq("clinic_id", clinicId)
     .order("created_at", { ascending: false })
     .limit(10)
     .throwOnError();
   const sub = pickActiveSubscription(subs as SubscriptionRow[]);
-  if (!sub) return { ok: false, sender }; // sem assinatura em dia, a assistente não responde
+  if (!sub) return null; // sem assinatura em dia, a assistente não responde
 
   if (sub.messages_used_this_period >= (sub.plans?.message_quota ?? 0)) {
-    await notifyQuotaExceeded(admin, clinic, sender, sub.id).catch((e) =>
+    await notifyQuotaExceeded(admin, clinicId, alertSender, sub.id).catch((e) =>
       console.error("[whatsapp] aviso de cota:", (e as Error).message),
     );
-    return { ok: false, sender }; // cota do ciclo acabou: só volta a responder na renovação
+    return null; // cota do ciclo acabou: só volta a responder na renovação
   }
-  return { ok: true, sender, subscriptionId: sub.id };
+  return sub.id;
+}
+
+/** A cota conta as respostas da IA, não as mensagens recebidas. */
+export async function countAiMessage(admin: Admin, subscriptionId: string) {
+  const { error } = await admin.rpc("count_ai_message", {
+    p_subscription_id: subscriptionId,
+  });
+  if (error) console.error("[ia] contar na cota:", error.message);
 }
 
 async function handleMessages(
@@ -270,8 +293,8 @@ async function handleMessages(
 /** Avisa a equipe uma vez por ciclo que a cota de mensagens acabou. */
 async function notifyQuotaExceeded(
   admin: Admin,
-  clinic: InboundClinic,
-  sender: Sender,
+  clinicId: string,
+  sender: Sender | null,
   subscriptionId: string,
 ) {
   // Marca antes de avisar, e só se ninguém marcou: dois avisos chegando juntos mandam um só.
@@ -283,11 +306,11 @@ async function notifyQuotaExceeded(
     .select("id")
     .throwOnError();
   if (!claimed?.length) return;
-  await notifyStaff(admin, clinic.id, sender, {
+  await notifyStaff(admin, clinicId, sender, {
     title: "Limite de mensagens do plano atingido",
     params: [
       "Limite de mensagens do plano atingido",
-      "A assistente parou de responder pelo WhatsApp até a renovação da assinatura",
+      "A assistente parou de responder até a renovação da assinatura",
     ],
   });
 }
@@ -295,13 +318,14 @@ async function notifyQuotaExceeded(
 /**
  * Põe a conversa na fila de atendimento humano e avisa a equipe pelos canais da clínica. Vale tanto quando
  * a IA pede ([[ESCALAR]]) quanto quando ela falha: nos dois casos alguém precisa assumir.
+ * `who` identifica o paciente no aviso ("+55 41 9...", "@fulana no Instagram").
  */
-async function escalateToStaff(
+export async function escalateToStaff(
   admin: Admin,
-  clinic: InboundClinic,
-  sender: Sender,
+  clinicId: string,
+  sender: Sender | null,
   conversationId: number,
-  from: string,
+  who: string,
   patientMessage: string,
 ) {
   try {
@@ -319,9 +343,9 @@ async function escalateToStaff(
   }
 
   try {
-    await notifyStaff(admin, clinic.id, sender, {
+    await notifyStaff(admin, clinicId, sender, {
       title: "Paciente pedindo atendimento",
-      params: [`+${from}`, patientMessage.slice(0, 200)],
+      params: [who, patientMessage.slice(0, 200)],
     });
   } catch (e) {
     console.error("[whatsapp] aviso à equipe:", (e as Error).message);
@@ -433,7 +457,14 @@ async function processMessage(
       "Desculpe, tive um problema para responder agora. Nossa equipe vai te retornar em breve.",
     );
     // Prometemos que a equipe vai retornar: a conversa precisa cair na fila e alguém ser avisado.
-    await escalateToStaff(admin, clinic, sender, conversation.id, from, body);
+    await escalateToStaff(
+      admin,
+      clinic.id,
+      sender,
+      conversation.id,
+      `+${from}`,
+      body,
+    );
     return;
   }
 
@@ -460,16 +491,17 @@ async function processMessage(
       sent_image_id: sentImageId,
     })
     .throwOnError();
-  // A cota conta as respostas da IA, não as mensagens recebidas.
-  const { error: countError } = await admin.rpc("count_ai_message", {
-    p_subscription_id: subscriptionId,
-  });
-  if (countError) {
-    console.error("[whatsapp] contar na cota:", countError.message);
-  }
+  await countAiMessage(admin, subscriptionId);
 
   if (reply.needsHuman) {
-    await escalateToStaff(admin, clinic, sender, conversation.id, from, body);
+    await escalateToStaff(
+      admin,
+      clinic.id,
+      sender,
+      conversation.id,
+      `+${from}`,
+      body,
+    );
   }
 }
 
@@ -484,17 +516,9 @@ async function optOut(
   conversation: { id: number; contact_id: string | null },
   from: string,
 ) {
-  const { data: changed } = await admin
-    .from("contacts")
-    .update({ opted_out_at: new Date().toISOString() })
-    .eq("id", conversation.contact_id!)
-    .is("opted_out_at", null)
-    .select("id")
-    .throwOnError();
-  if (!changed.length || !sender) return;
+  if (!(await markOptedOut(admin, conversation.contact_id!)) || !sender) return;
 
-  const text =
-    "Tudo certo, você não vai mais receber nossas mensagens automáticas. Se quiser falar com a clínica, é só escrever por aqui.";
+  const text = OPT_OUT_REPLY;
   await sendText(sender, from, text);
   await admin
     .from("messages")
@@ -508,8 +532,23 @@ async function optOut(
     .throwOnError();
 }
 
+export const OPT_OUT_REPLY =
+  "Tudo certo, você não vai mais receber nossas mensagens automáticas. Se quiser falar com a clínica, é só escrever por aqui.";
+
+/** Marca o pedido para sair no contato. true na primeira vez (para confirmar uma vez só). */
+export async function markOptedOut(admin: Admin, contactId: string) {
+  const { data: changed } = await admin
+    .from("contacts")
+    .update({ opted_out_at: new Date().toISOString() })
+    .eq("id", contactId)
+    .is("opted_out_at", null)
+    .select("id")
+    .throwOnError();
+  return changed.length > 0;
+}
+
 /** Os resumos das últimas conversas encerradas com o mesmo contato, da mais nova para a mais antiga. */
-async function loadPreviousSummaries(
+export async function loadPreviousSummaries(
   admin: Admin,
   conversation: { id: number; contact_id: string | null },
 ) {
@@ -543,7 +582,7 @@ async function saveProfileName(
 }
 
 /** As últimas mensagens da conversa, da mais antiga para a mais nova. */
-async function loadHistory(
+export async function loadHistory(
   admin: Admin,
   conversationId: number,
 ): Promise<ChatTurn[]> {
@@ -561,7 +600,7 @@ async function loadHistory(
   }));
 }
 
-async function loadSentImageIds(admin: Admin, conversationId: number) {
+export async function loadSentImageIds(admin: Admin, conversationId: number) {
   const { data } = await admin
     .from("messages")
     .select("sent_image_id")
