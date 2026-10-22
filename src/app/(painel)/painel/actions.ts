@@ -145,23 +145,16 @@ export async function saveHours(input: unknown): Promise<FormResult> {
   const ctx = await getActionContext();
   if ("error" in ctx) return fail(ctx.error);
 
-  const [clinic, integration] = await Promise.all([
-    ctx.supabase
-      .from("clinics")
-      .update({
-        work_days: [...new Set(v.workDays)].sort(),
-        work_hours_start: v.start || null,
-        work_hours_end: v.end || null,
-        works_on_holidays: v.worksOnHolidays,
-        extra_closed_dates: v.extraClosedDates,
-      })
-      .eq("id", ctx.clinic.id),
-    ctx.supabase
-      .from("integrations")
-      .update({ reminder_hours_before: v.reminderHoursBefore })
-      .eq("clinic_id", ctx.clinic.id),
-  ]);
-  const error = clinic.error ?? integration.error;
+  const { error } = await ctx.supabase
+    .from("clinics")
+    .update({
+      work_days: [...new Set(v.workDays)].sort(),
+      work_hours_start: v.start || null,
+      work_hours_end: v.end || null,
+      works_on_holidays: v.worksOnHolidays,
+      extra_closed_dates: v.extraClosedDates,
+    })
+    .eq("id", ctx.clinic.id);
   if (error) return saveError("horários", error.message);
   refresh();
   return { ok: true };

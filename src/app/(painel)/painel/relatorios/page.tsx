@@ -18,6 +18,7 @@ import {
 
 import { DailyChart } from "@/components/painel/daily-chart";
 import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDateTime, formatPhone } from "@/lib/format";
@@ -68,6 +69,7 @@ export default function ReportsPage({
 }: PageProps<"/painel/relatorios">) {
   return (
     <>
+      <PageTabs group="relatorios" />
       <PageHeader
         icon={BarChart3}
         title="Relatórios"
@@ -384,7 +386,7 @@ function FunnelSection({ funnel }: { funnel: FunnelStats }) {
               href="/painel/oportunidades"
               className="text-primary underline-offset-4 hover:underline"
             >
-              Contatos a fazer
+              Quem retomar
             </Link>
           </p>
         </PanelCard>

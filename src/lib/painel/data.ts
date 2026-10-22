@@ -35,22 +35,13 @@ export async function getClinicSettings() {
 
 /** Horários no formato do formulário ("08:00", sem segundos). */
 export async function getHours() {
-  const { supabase, clinic } = await getPanelContext();
-  const [settings, { data: integration }] = await Promise.all([
-    getClinicSettings(),
-    supabase
-      .from("integrations")
-      .select("reminder_hours_before")
-      .eq("clinic_id", clinic.id)
-      .maybeSingle(),
-  ]);
+  const settings = await getClinicSettings();
   return {
     workDays: settings.work_days,
     start: settings.work_hours_start?.slice(0, 5) ?? "",
     end: settings.work_hours_end?.slice(0, 5) ?? "",
     worksOnHolidays: settings.works_on_holidays,
     extraClosedDates: settings.extra_closed_dates,
-    reminderHoursBefore: integration?.reminder_hours_before ?? 0,
   };
 }
 

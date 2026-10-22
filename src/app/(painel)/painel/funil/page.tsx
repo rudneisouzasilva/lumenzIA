@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { KanbanSquare } from "lucide-react";
 
 import { PageHeader, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import {
   PipelineBoard,
   type BoardContact,
@@ -26,6 +27,7 @@ export default function PipelinePage({
 }: PageProps<"/painel/funil">) {
   return (
     <>
+      <PageTabs group="funil" />
       <PageHeader
         icon={KanbanSquare}
         title="Funil"

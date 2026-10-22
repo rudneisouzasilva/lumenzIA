@@ -12,6 +12,7 @@ import {
 
 import { GenerateInsightsButton } from "@/components/painel/generate-insights-button";
 import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import type { Insights } from "@/lib/ai/insights";
 import { formatDate, isoDateInBrasilia } from "@/lib/format";
 import { getPanelContext } from "@/lib/painel/context";
@@ -34,6 +35,7 @@ export default function InsightsPage({
 }: PageProps<"/painel/analise">) {
   return (
     <>
+      <PageTabs group="relatorios" />
       <PageHeader
         icon={Brain}
         title="Análise da IA"
@@ -175,7 +177,7 @@ async function Analysis({
                   href="/painel/oportunidades"
                   className="text-sm text-primary underline-offset-4 hover:underline"
                 >
-                  Ver os contatos a fazer
+                  Ver quem retomar no funil
                 </Link>
               }
             />

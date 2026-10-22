@@ -10,15 +10,15 @@ import { parseStaffChannels } from "@/lib/notifications/channels";
 import { emailConfigured } from "@/lib/notifications/email";
 import { getPanelContext } from "@/lib/painel/context";
 
-export const metadata: Metadata = { title: "Avisos e lembretes" };
+export const metadata: Metadata = { title: "Lembretes e avisos" };
 
 export default function NotificationsPage() {
   return (
     <>
       <PageHeader
         icon={BellRing}
-        title="Avisos e lembretes"
-        description="Por onde a equipe fica sabendo que um paciente precisa de atendimento, e por onde os pacientes recebem o lembrete do horário."
+        title="Lembretes e avisos"
+        description="Quando e por onde o paciente recebe o lembrete do horário, e como a equipe fica sabendo que alguém precisa de atendimento."
       />
       <Suspense fallback={<PanelSkeleton />}>
         <Form />
@@ -49,6 +49,7 @@ async function Form() {
     <PanelCard>
       <NotificationSettingsForm
         initial={{
+          reminderHoursBefore: integration?.reminder_hours_before ?? 0,
           channels: parseStaffChannels(data.staff_alert_channels),
           phone: data.staff_phone_number
             ? formatPhone(data.staff_phone_number)
@@ -60,7 +61,6 @@ async function Form() {
         bookingAsksEmail={
           parseBookingFields(data.booking_fields).email !== "desligado"
         }
-        remindersOn={(integration?.reminder_hours_before ?? 0) > 0}
       />
     </PanelCard>
   );

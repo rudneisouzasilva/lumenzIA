@@ -21,8 +21,10 @@ export function parseStaffChannels(raw: unknown): StaffChannel[] {
 
 export const MAX_STAFF_EMAIL = 254;
 
-/** O que a tela "Avisos e lembretes" salva (conferido de novo na Server Action). */
+/** O que a tela "Lembretes e avisos" salva (conferido de novo na Server Action). */
 export type NotificationSettings = {
+  /** Quantas horas antes do horário o lembrete sai (0 = sem lembrete). */
+  reminderHoursBefore: number;
   channels: StaffChannel[];
   /** WhatsApp da equipe, como a pessoa digitou. */
   phone: string;

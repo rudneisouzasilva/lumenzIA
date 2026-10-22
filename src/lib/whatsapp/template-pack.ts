@@ -70,7 +70,7 @@ export const TEMPLATE_PACK: PackItem[] = [
     name: "lumenzia_lembrete_agendamento",
     title: "Lembrete de agendamento",
     description:
-      "Enviado antes do horário marcado, no prazo escolhido em Horários.",
+      "Enviado antes do horário marcado, no prazo escolhido em Lembretes e avisos.",
     category: "UTILITY",
     body: "Olá, {{1}}! Passando para lembrar do seu horário na clínica: {{2}}. Se precisar remarcar, é só responder esta mensagem.",
     footer: "",

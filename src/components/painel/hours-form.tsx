@@ -1,7 +1,6 @@
 "use client";
 
 import { useForm, useWatch } from "react-hook-form";
-import { BellRing } from "lucide-react";
 import { motion } from "motion/react";
 import type { z } from "zod";
 
@@ -10,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { zodResolver } from "@/lib/auth/zod-resolver";
-import { hoursSchema, REMINDER_OPTIONS } from "@/lib/painel/validation";
+import { hoursSchema } from "@/lib/painel/validation";
 import { cn } from "@/lib/utils";
 
 import { FieldError, SaveButton, TextareaField, useSave } from "./form-parts";
@@ -27,39 +26,23 @@ const DAYS = [
   { value: 7, short: "Dom", long: "domingo" },
 ];
 
-const reminderLabel = (hours: number) =>
-  hours === 0
-    ? "Sem lembrete"
-    : hours === 24
-      ? "1 dia antes"
-      : hours === 48
-        ? "2 dias antes"
-        : `${hours} horas antes`;
-
 export function HoursForm({
   initial,
   submitLabel,
   onSaved,
-  showReminder = true,
 }: {
   initial: Hours;
   submitLabel?: string;
   onSaved?: () => void;
-  showReminder?: boolean;
 }) {
   const form = useForm<Hours>({
     resolver: zodResolver(hoursSchema),
     defaultValues: initial,
   });
   const { pending, saved, save } = useSave(saveHours);
-  const [days, worksOnHolidays, extraClosedDates, reminder] = useWatch({
+  const [days, worksOnHolidays, extraClosedDates] = useWatch({
     control: form.control,
-    name: [
-      "workDays",
-      "worksOnHolidays",
-      "extraClosedDates",
-      "reminderHoursBefore",
-    ],
+    name: ["workDays", "worksOnHolidays", "extraClosedDates"],
   });
   const errors = form.formState.errors;
 
@@ -161,44 +144,6 @@ export function HoursForm({
         error={errors.extraClosedDates?.message}
         {...form.register("extraClosedDates")}
       />
-
-      {showReminder && (
-        <fieldset>
-          <legend className="mb-1 flex items-center gap-2 text-sm font-medium">
-            <BellRing className="size-4 text-primary" />
-            Lembrete do agendamento no WhatsApp
-          </legend>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Enviado ao paciente quando a agenda da clínica estiver conectada.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {REMINDER_OPTIONS.map((h) => {
-              const on = reminder === h;
-              return (
-                <button
-                  key={h}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() =>
-                    form.setValue("reminderHoursBefore", h, {
-                      shouldDirty: true,
-                    })
-                  }
-                  className={cn(
-                    "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                    on
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "hover:bg-accent/50",
-                  )}
-                >
-                  {reminderLabel(h)}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-      )}
 
       <SaveButton
         pending={pending}

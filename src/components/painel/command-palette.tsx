@@ -9,7 +9,7 @@ import { signOut } from "@/app/(auth)/actions";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-import { NAV_ITEMS } from "./nav";
+import { SEARCH_ITEMS } from "./nav";
 
 type Command = {
   id: string;
@@ -60,7 +60,7 @@ function Palette({ close }: { close: () => void }) {
 
   const commands = useMemo<Command[]>(
     () => [
-      ...NAV_ITEMS.map((item) => ({
+      ...SEARCH_ITEMS.map((item) => ({
         id: item.href,
         label: item.label,
         hint: "Ir para",

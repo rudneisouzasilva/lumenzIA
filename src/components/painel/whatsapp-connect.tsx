@@ -329,7 +329,7 @@ export function WhatsappConnect({
           },
           {
             title: "Pronto",
-            text: "Volte aqui e ligue a assistente na Visão geral.",
+            text: "Volte aqui e ligue a assistente no Início.",
           },
         ].map((step, i) => (
           <li key={step.title} className="rounded-xl border p-4">

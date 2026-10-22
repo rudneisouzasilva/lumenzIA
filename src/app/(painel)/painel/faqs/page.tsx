@@ -4,6 +4,7 @@ import { MessageCircleQuestion } from "lucide-react";
 
 import { ListEditor } from "@/components/painel/list-editor";
 import { PageHeader, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import { getListItems } from "@/lib/painel/data";
 
 export const metadata: Metadata = { title: "Perguntas frequentes" };
@@ -11,6 +12,7 @@ export const metadata: Metadata = { title: "Perguntas frequentes" };
 export default function FaqsPage() {
   return (
     <>
+      <PageTabs group="conhecimento" />
       <PageHeader
         icon={MessageCircleQuestion}
         title="Perguntas frequentes"

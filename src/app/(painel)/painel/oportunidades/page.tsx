@@ -7,19 +7,21 @@ import {
   type Opportunity,
 } from "@/components/painel/opportunities-list";
 import { PageHeader, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import { getPanelContext } from "@/lib/painel/context";
 import { getInboxData } from "@/lib/painel/data";
 
-export const metadata: Metadata = { title: "Contatos a fazer" };
+export const metadata: Metadata = { title: "Para retomar" };
 
 const LIMIT = 100;
 
 export default function OpportunitiesPage() {
   return (
     <>
+      <PageTabs group="funil" />
       <PageHeader
         icon={PhoneOutgoing}
-        title="Contatos a fazer"
+        title="Para retomar"
         description="Quem conversou com a clínica, mostrou interesse e ainda não agendou, do mais promissor para o menos. Quem pediu para não receber mensagens ou já tem retomada marcada não aparece."
       />
       <Suspense fallback={<PanelSkeleton />}>

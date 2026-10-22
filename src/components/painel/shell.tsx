@@ -20,11 +20,23 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 import { CommandPalette } from "./command-palette";
-import { NAV_SECTIONS, isActive } from "./nav";
+import {
+  NAV_FOOTER,
+  NAV_SECTIONS,
+  isActive,
+  isItemActive,
+  type NavItem,
+} from "./nav";
 import { usePendingCount } from "./pending-watcher";
 
 // Telas que precisam de largura (duas colunas de conversa, gráficos).
-const WIDE_ROUTES = ["/painel/atendimento", "/painel/relatorios"];
+const WIDE_ROUTES = [
+  "/painel/atendimento",
+  // As abas de Relatórios ficam na mesma largura para a troca não "pular".
+  "/painel/relatorios",
+  "/painel/analise",
+  "/painel/motivos",
+];
 
 // A barra lateral recolhida é uma preferência do navegador (não precisa ir para o banco).
 const COLLAPSED_KEY = "lumenzia:sidebar-collapsed";
@@ -205,78 +217,105 @@ function SidebarNav({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  return (
+    <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
+      <div className="flex-1 space-y-6">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title}>
+            <p
+              className={cn(
+                "mb-2 px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase",
+                collapsed && "sr-only",
+              )}
+            >
+              {section.title}
+            </p>
+            <ul className="space-y-1">
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {/* A conta fica no rodapé: é usada de vez em quando, não no dia a dia. */}
+      <ul className="mt-6 space-y-1 border-t pt-4">
+        {NAV_FOOTER.map((item) => (
+          <NavLink
+            key={item.href}
+            item={item}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function NavLink({
+  item,
+  collapsed,
+  onNavigate,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const pendingCount = usePendingCount();
+  const active = isItemActive(pathname, item);
+  const Icon = item.icon;
 
   return (
-    <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-      {NAV_SECTIONS.map((section) => (
-        <div key={section.title}>
-          <p
+    <li>
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        title={collapsed ? item.label : undefined}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "relative flex h-9 items-center gap-3 rounded-lg px-3 text-sm transition-colors",
+          active
+            ? "font-medium text-primary"
+            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+          collapsed && "justify-center px-0",
+        )}
+      >
+        {active && (
+          <motion.span
+            layoutId={onNavigate ? "nav-active-mobile" : "nav-active"}
+            aria-hidden
+            className="absolute inset-0 rounded-lg bg-primary/10"
+            transition={{
+              type: "spring",
+              stiffness: 420,
+              damping: 34,
+            }}
+          />
+        )}
+        <Icon className="relative size-4 shrink-0" />
+        <span className={cn("relative truncate", collapsed && "sr-only")}>
+          {item.label}
+        </span>
+        {item.href === "/painel/atendimento" && pendingCount > 0 && (
+          <span
             className={cn(
-              "mb-2 px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase",
-              collapsed && "sr-only",
+              "relative ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white tabular-nums",
+              collapsed &&
+                "absolute top-0.5 right-1 ml-0 h-4 min-w-4 px-1 text-[10px]",
             )}
+            aria-label={`${pendingCount} precisando de atendimento`}
           >
-            {section.title}
-          </p>
-          <ul className="space-y-1">
-            {section.items.map((item) => {
-              const active = isActive(pathname, item.href);
-              const Icon = item.icon;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onNavigate}
-                    title={collapsed ? item.label : undefined}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "relative flex h-9 items-center gap-3 rounded-lg px-3 text-sm transition-colors",
-                      active
-                        ? "font-medium text-primary"
-                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-                      collapsed && "justify-center px-0",
-                    )}
-                  >
-                    {active && (
-                      <motion.span
-                        layoutId={
-                          onNavigate ? "nav-active-mobile" : "nav-active"
-                        }
-                        aria-hidden
-                        className="absolute inset-0 rounded-lg bg-primary/10"
-                        transition={{
-                          type: "spring",
-                          stiffness: 420,
-                          damping: 34,
-                        }}
-                      />
-                    )}
-                    <Icon className="relative size-4 shrink-0" />
-                    <span className={cn("relative", collapsed && "sr-only")}>
-                      {item.label}
-                    </span>
-                    {item.href === "/painel/atendimento" &&
-                      pendingCount > 0 && (
-                        <span
-                          className={cn(
-                            "relative ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white tabular-nums",
-                            collapsed &&
-                              "absolute top-0.5 right-1 ml-0 h-4 min-w-4 px-1 text-[10px]",
-                          )}
-                          aria-label={`${pendingCount} precisando de atendimento`}
-                        >
-                          {pendingCount}
-                        </span>
-                      )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </nav>
+            {pendingCount}
+          </span>
+        )}
+      </Link>
+    </li>
   );
 }

@@ -23,15 +23,15 @@ import { getPanelContext } from "@/lib/painel/context";
 import { getClinicSettings } from "@/lib/painel/data";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Visão geral" };
+export const metadata: Metadata = { title: "Início" };
 
 export default function OverviewPage() {
   return (
     <>
       <PageHeader
         icon={LayoutDashboard}
-        title="Visão geral"
-        description="O que já está pronto na sua assistente e o que falta configurar."
+        title="Início"
+        description="Como está a sua assistente hoje e o que ainda falta configurar."
       >
         <Button asChild variant="outline">
           <Link href="/painel/testar">
@@ -146,8 +146,13 @@ async function Overview() {
               </li>
             ))}
           </ul>
-          {done < 3 && (
-            <Button asChild className="mt-5 w-full sm:w-auto">
+          {/* O passo a passo guiado não fica no menu: aparece aqui enquanto falta configurar. */}
+          {done < steps.length && (
+            <Button
+              asChild
+              variant={done < 3 ? "default" : "outline"}
+              className="mt-5 w-full sm:w-auto"
+            >
               <Link href="/painel/comecar">
                 <Rocket />
                 Fazer o passo a passo guiado
@@ -248,7 +253,7 @@ async function Overview() {
         <Stat
           href="/painel/perguntas"
           icon={ListChecks}
-          label="Perguntas da IA"
+          label="Perguntas ao paciente"
           value={questions}
         />
       </div>

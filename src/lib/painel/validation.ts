@@ -81,7 +81,6 @@ export const hoursSchema = z
     end: time,
     worksOnHolidays: z.boolean(),
     extraClosedDates: optional(2000),
-    reminderHoursBefore: z.number().int().min(0).max(168),
   })
   .refine((v) => Boolean(v.start) === Boolean(v.end), {
     path: ["end"],
