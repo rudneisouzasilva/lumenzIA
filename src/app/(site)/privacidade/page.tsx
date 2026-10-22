@@ -153,7 +153,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Sistema de agenda da clínica</strong> (quando conectado, por
-          exemplo Google Calendar): nome, telefone e horário dos agendamentos.
+          exemplo Google Calendar ou Clínica Experts): nome, telefone e horário
+          dos agendamentos.
         </li>
       </ul>
       <p>

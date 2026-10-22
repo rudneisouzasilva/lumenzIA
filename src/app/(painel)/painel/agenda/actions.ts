@@ -9,6 +9,11 @@ import {
   MAX_CUSTOM_FIELD_NAME,
   MAX_CUSTOM_FIELDS,
 } from "@/lib/booking-fields";
+import {
+  ClinicaExpertsError,
+  clinicKey,
+  listCeProfessionals,
+} from "@/lib/clinica-experts/client";
 import { listCalendars, revokeAccount } from "@/lib/google/client";
 import { getActionContext } from "@/lib/painel/context";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -204,6 +209,241 @@ export async function disconnectGoogleAccount(
       .update({ enabled: false })
       .eq("clinic_id", ctx.clinic.id)
       .eq("mode", "google");
+  }
+  refresh();
+  return { ok: true };
+}
+
+// --- Clínica Experts ---------------------------------------------------------------------
+
+/** Cola a chave da API: testa na hora (lista os profissionais) e só então guarda no Vault. */
+export async function connectClinicaExperts(key: unknown): Promise<FormResult> {
+  const parsed = z.string().trim().min(10).max(2000).safeParse(key);
+  if (!parsed.success) return fail("Cole a chave de API inteira.");
+  const apiKey = parsed.data.replace(/^Bearer\s+/i, "");
+  const ctx = await getActionContext();
+  if ("error" in ctx) return fail(ctx.error);
+
+  try {
+    await listCeProfessionals(apiKey);
+  } catch (e) {
+    console.error("[agenda] testar Clínica Experts:", (e as Error).message);
+    if (
+      e instanceof ClinicaExpertsError &&
+      (e.status === 401 || e.status === 403)
+    ) {
+      return fail(
+        "O Clínica Experts recusou esta chave. Confira se copiou a chave inteira e se ela está ativa.",
+      );
+    }
+    return fail(
+      "Não foi possível falar com o Clínica Experts agora. Tente de novo.",
+    );
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("clinica_experts_accounts").upsert(
+    {
+      clinic_id: ctx.clinic.id,
+      status: "ativo",
+      last_error: null,
+      connected_by: ctx.user.id,
+      connected_at: new Date().toISOString(),
+    },
+    { onConflict: "clinic_id" },
+  );
+  const { error: keyError } = error
+    ? { error }
+    : await admin.rpc("set_clinica_experts_key", {
+        p_clinic_id: ctx.clinic.id,
+        p_key: apiKey,
+      });
+  if (keyError) {
+    console.error("[agenda] salvar Clínica Experts:", keyError.message);
+    return fail("Não foi possível salvar agora. Tente de novo.");
+  }
+  refresh();
+  return { ok: true };
+}
+
+/** Desconecta: apaga a chave, solta os profissionais e, se estava em uso, desliga a agenda. */
+export async function disconnectClinicaExperts(): Promise<FormResult> {
+  const ctx = await getActionContext();
+  if ("error" in ctx) return fail(ctx.error);
+  const admin = createAdminClient();
+  const cleared = { ce_professional_uuid: null, ce_professional_name: "" };
+  const results = await Promise.all([
+    admin
+      .from("clinica_experts_accounts")
+      .delete()
+      .eq("clinic_id", ctx.clinic.id),
+    admin.from("professionals").update(cleared).eq("clinic_id", ctx.clinic.id),
+    admin.from("integrations").update(cleared).eq("clinic_id", ctx.clinic.id),
+    admin
+      .from("integrations")
+      .update({ enabled: false })
+      .eq("clinic_id", ctx.clinic.id)
+      .eq("mode", "clinica_experts"),
+  ]);
+  const error = results.find((r) => r.error)?.error;
+  if (error) {
+    console.error("[agenda] desconectar Clínica Experts:", error.message);
+    return fail("Não foi possível desconectar agora. Tente de novo.");
+  }
+  refresh();
+  return { ok: true };
+}
+
+const ceChoice = z.string().max(100).nullable();
+const ceProfessionalsSchema = z.object({
+  main: ceChoice,
+  professionals: z.record(z.uuid(), ceChoice),
+});
+
+async function chosenCeProfessionals(admin: Admin, clinicId: string) {
+  const [{ data: integration }, { data: professionals }] = await Promise.all([
+    admin
+      .from("integrations")
+      .select("ce_professional_uuid")
+      .eq("clinic_id", clinicId)
+      .single()
+      .throwOnError(),
+    admin
+      .from("professionals")
+      .select("id")
+      .eq("clinic_id", clinicId)
+      .not("ce_professional_uuid", "is", null)
+      .throwOnError(),
+  ]);
+  return (integration.ce_professional_uuid ? 1 : 0) + professionals.length;
+}
+
+/** Qual profissional do Clínica Experts é cada profissional daqui (e o principal). */
+export async function saveClinicaExpertsProfessionals(
+  input: unknown,
+): Promise<FormResult> {
+  const parsed = ceProfessionalsSchema.safeParse(input);
+  if (!parsed.success) return fail("Escolha os profissionais de novo.");
+  const ctx = await getActionContext();
+  if ("error" in ctx) return fail(ctx.error);
+  const admin = createAdminClient();
+
+  let names: Map<string, string>;
+  try {
+    const key = await clinicKey(ctx.clinic.id);
+    if (!key) return fail("Conecte o Clínica Experts primeiro.");
+    names = new Map(
+      (await listCeProfessionals(key)).map((p) => [p.uuid, p.name]),
+    );
+  } catch (e) {
+    console.error(
+      "[agenda] ler profissionais do Clínica Experts:",
+      (e as Error).message,
+    );
+    return fail(
+      "Não foi possível falar com o Clínica Experts agora. Tente de novo.",
+    );
+  }
+  const resolve = (uuid: string | null) => {
+    if (!uuid) return { ce_professional_uuid: null, ce_professional_name: "" };
+    const name = names.get(uuid);
+    if (name === undefined) return null;
+    return {
+      ce_professional_uuid: uuid,
+      ce_professional_name: name.slice(0, 200),
+    };
+  };
+
+  const main = resolve(parsed.data.main);
+  if (!main)
+    return fail(
+      "O profissional principal não foi encontrado no Clínica Experts.",
+    );
+  const { data: professionals } = await admin
+    .from("professionals")
+    .select("id")
+    .eq("clinic_id", ctx.clinic.id)
+    .throwOnError();
+  const updates = [];
+  for (const [id, uuid] of Object.entries(parsed.data.professionals)) {
+    if (!professionals.some((p) => p.id === id)) continue;
+    const resolved = resolve(uuid);
+    if (!resolved)
+      return fail(
+        "Um dos profissionais não foi encontrado no Clínica Experts.",
+      );
+    updates.push(
+      admin
+        .from("professionals")
+        .update(resolved)
+        .eq("id", id)
+        .eq("clinic_id", ctx.clinic.id),
+    );
+  }
+  updates.push(
+    admin.from("integrations").update(main).eq("clinic_id", ctx.clinic.id),
+  );
+  const results = await Promise.all(updates);
+  const error = results.find((r) => r.error)?.error;
+  if (error) {
+    console.error(
+      "[agenda] salvar profissionais do Clínica Experts:",
+      error.message,
+    );
+    return fail("Não foi possível salvar agora. Tente de novo.");
+  }
+
+  // Sem nenhum profissional escolhido, a assistente deixa de usar o Clínica Experts.
+  if (!(await chosenCeProfessionals(admin, ctx.clinic.id))) {
+    await admin
+      .from("integrations")
+      .update({ enabled: false })
+      .eq("clinic_id", ctx.clinic.id)
+      .eq("mode", "clinica_experts");
+  }
+  refresh();
+  return { ok: true };
+}
+
+/** Liga ou desliga o Clínica Experts como a agenda que a assistente usa. */
+export async function setClinicaExpertsAgenda(
+  enabled: unknown,
+): Promise<FormResult> {
+  if (typeof enabled !== "boolean") return fail("Valor inválido.");
+  const ctx = await getActionContext();
+  if ("error" in ctx) return fail(ctx.error);
+  const admin = createAdminClient();
+
+  if (enabled) {
+    const { data: account } = await admin
+      .from("clinica_experts_accounts")
+      .select("status")
+      .eq("clinic_id", ctx.clinic.id)
+      .maybeSingle()
+      .throwOnError();
+    if (account?.status !== "ativo")
+      return fail("Conecte o Clínica Experts primeiro.");
+    if (!(await chosenCeProfessionals(admin, ctx.clinic.id))) {
+      return fail("Escolha pelo menos um profissional antes de ligar.");
+    }
+  }
+  const { error } = enabled
+    ? await admin
+        .from("integrations")
+        .update({
+          mode: "clinica_experts",
+          enabled: true,
+          provider_name: "Clínica Experts",
+        })
+        .eq("clinic_id", ctx.clinic.id)
+    : await admin
+        .from("integrations")
+        .update({ enabled: false })
+        .eq("clinic_id", ctx.clinic.id)
+        .eq("mode", "clinica_experts");
+  if (error) {
+    console.error("[agenda] ligar Clínica Experts:", error.message);
+    return fail("Não foi possível salvar agora. Tente de novo.");
   }
   refresh();
   return { ok: true };

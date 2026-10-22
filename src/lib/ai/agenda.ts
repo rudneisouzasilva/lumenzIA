@@ -10,16 +10,19 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
+import { callClinicaExpertsAgenda } from "./clinica-experts-agenda";
 import { callGoogleAgenda } from "./google-agenda";
 import { bookingToolProperties } from "./patient-data";
 
 /**
  * Conexão com a agenda da clínica
  * -------------------------------
- * Há três modos:
+ * Há quatro modos:
  *
  *  - "google": o Google Agenda conectado pela própria clínica no painel, com uma agenda por
  *    profissional (veja google-agenda.ts).
+ *  - "clinica_experts": a chave da API do Clínica Experts colada pela clínica no painel, com um
+ *    profissional de lá para cada profissional daqui (veja clinica-experts-agenda.ts).
  *
  * A maioria dos outros sistemas de clínica de estética não tem API pública; para eles, a equipe
  * LumenzIA configura:
@@ -510,6 +513,13 @@ export async function callAgenda(
   let result: AgendaResult;
   if (integration.mode === "google") {
     result = await callGoogleAgenda(integration, services, action, params);
+  } else if (integration.mode === "clinica_experts") {
+    result = await callClinicaExpertsAgenda(
+      integration,
+      services,
+      action,
+      params,
+    );
   } else {
     try {
       const { data: apiKey } = await createAdminClient().rpc(
