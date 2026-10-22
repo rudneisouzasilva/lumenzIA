@@ -10,6 +10,7 @@ import { isEmail, STAFF_CHANNELS } from "@/lib/notifications/channels";
 import { getActionContext } from "@/lib/painel/context";
 
 const schema = z.object({
+  reminderHoursBefore: z.number().int().min(0).max(168),
   channels: z.array(z.enum(STAFF_CHANNELS)).max(STAFF_CHANNELS.length),
   phone: z.string().trim().max(40),
   email: z.string().trim().toLowerCase().max(254),
@@ -18,13 +19,14 @@ const schema = z.object({
 
 const fail = (error: string): FormResult => ({ ok: false, error });
 
-/** Canais e contatos dos avisos à equipe, e se o lembrete também vai por e-mail. */
+/** Quando e por onde sai o lembrete do paciente, e os canais e contatos dos avisos à equipe. */
 export async function saveNotificationSettings(
   input: unknown,
 ): Promise<FormResult> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) return fail("Confira os campos.");
-  const { channels, phone, email, reminderByEmail } = parsed.data;
+  const { reminderHoursBefore, channels, phone, email, reminderByEmail } =
+    parsed.data;
 
   const staffPhone = phone ? normalizePhone(phone) : null;
   if (phone && !staffPhone) {
@@ -53,22 +55,29 @@ export async function saveNotificationSettings(
     if (error) return fail("Não foi possível salvar agora. Tente de novo.");
     if (parseBookingFields(data.booking_fields).email === "desligado") {
       return fail(
-        "Para lembrar por e-mail, peça o e-mail no agendamento (menu Agenda).",
+        "Para lembrar por e-mail, peça o e-mail em Roteiro de atendimento › Dados do agendamento.",
       );
     }
   }
 
-  const { error } = await ctx.supabase
-    .from("clinics")
-    .update({
-      staff_alert_channels: channels,
-      staff_phone_number: staffPhone,
-      staff_alert_email: email || null,
-      reminder_by_email: reminderByEmail,
-    })
-    .eq("id", ctx.clinic.id);
+  const [clinic, integration] = await Promise.all([
+    ctx.supabase
+      .from("clinics")
+      .update({
+        staff_alert_channels: channels,
+        staff_phone_number: staffPhone,
+        staff_alert_email: email || null,
+        reminder_by_email: reminderByEmail,
+      })
+      .eq("id", ctx.clinic.id),
+    ctx.supabase
+      .from("integrations")
+      .update({ reminder_hours_before: reminderHoursBefore })
+      .eq("clinic_id", ctx.clinic.id),
+  ]);
+  const error = clinic.error ?? integration.error;
   if (error) {
-    console.error("[painel] avisos:", error.message);
+    console.error("[painel] lembretes e avisos:", error.message);
     return fail("Não foi possível salvar agora. Tente de novo.");
   }
   refresh();

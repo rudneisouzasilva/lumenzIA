@@ -6,13 +6,11 @@ import {
   AgendaSystems,
   ClinicaExpertsSettings,
 } from "@/components/painel/agenda-systems";
-import { BookingFieldsForm } from "@/components/painel/booking-fields-settings";
 import {
   GoogleAgendaSettings,
   type AccountItem,
 } from "@/components/painel/google-agenda-settings";
-import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
-import { parseBookingFields } from "@/lib/booking-fields";
+import { PageHeader, PanelSkeleton } from "@/components/painel/page";
 import {
   clinicKey,
   listCeProfessionals,
@@ -53,7 +51,7 @@ export default function AgendaPage({
       <PageHeader
         icon={CalendarDays}
         title="Agenda"
-        description="Conecte o sistema onde fica a agenda da clínica para a assistente ver os horários livres e marcar sozinha, e escolha os dados que ela pede ao agendar."
+        description="Conecte o sistema onde fica a agenda da clínica para a assistente ver os horários livres e marcar sozinha."
       />
       <Suspense fallback={<PanelSkeleton />}>
         <Settings searchParams={searchParams} />
@@ -74,7 +72,6 @@ async function Settings({
     { data: integration },
     { data: professionals },
     { data: accounts },
-    { data: settings },
     { data: ceAccount },
   ] = await Promise.all([
     admin
@@ -99,12 +96,6 @@ async function Settings({
       .select("id, email, status, last_error")
       .eq("clinic_id", clinic.id)
       .order("created_at")
-      .throwOnError(),
-    supabase
-      .from("clinics")
-      .select("booking_fields")
-      .eq("id", clinic.id)
-      .single()
       .throwOnError(),
     supabase
       .from("clinica_experts_accounts")
@@ -238,15 +229,6 @@ async function Settings({
           />
         </div>
       )}
-
-      <PanelCard
-        title="Dados pedidos no agendamento"
-        description="O que a assistente pergunta antes de marcar. Ela pede tudo de uma vez, depois que a pessoa escolhe o horário."
-      >
-        <BookingFieldsForm
-          initial={parseBookingFields(settings.booking_fields)}
-        />
-      </PanelCard>
     </div>
   );
 }

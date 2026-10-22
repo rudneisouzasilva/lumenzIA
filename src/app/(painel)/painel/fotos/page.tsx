@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Images } from "lucide-react";
 
 import { PageHeader, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import { PhotoManager } from "@/components/painel/photo-manager";
 import { getPanelContext } from "@/lib/painel/context";
 
@@ -11,6 +12,7 @@ export const metadata: Metadata = { title: "Fotos" };
 export default function PhotosPage() {
   return (
     <>
+      <PageTabs group="conhecimento" />
       <PageHeader
         icon={Images}
         title="Fotos"

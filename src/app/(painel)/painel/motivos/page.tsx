@@ -4,6 +4,7 @@ import { Tags } from "lucide-react";
 
 import { ListEditor } from "@/components/painel/list-editor";
 import { PageHeader, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import { getListItems } from "@/lib/painel/data";
 
 export const metadata: Metadata = { title: "Motivos de contato" };
@@ -11,6 +12,7 @@ export const metadata: Metadata = { title: "Motivos de contato" };
 export default function ContactReasonsPage() {
   return (
     <>
+      <PageTabs group="relatorios" />
       <PageHeader
         icon={Tags}
         title="Motivos de contato"

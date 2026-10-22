@@ -4,16 +4,18 @@ import { Lightbulb, MessagesSquare } from "lucide-react";
 
 import { PastConversationsForm } from "@/components/painel/assistant-forms";
 import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
+import { PageTabs } from "@/components/painel/page-tabs";
 import { getClinicSettings } from "@/lib/painel/data";
 
-export const metadata: Metadata = { title: "Conversas anteriores" };
+export const metadata: Metadata = { title: "Exemplos de conversa" };
 
 export default function PastConversationsPage() {
   return (
     <>
+      <PageTabs group="conhecimento" />
       <PageHeader
         icon={MessagesSquare}
-        title="Conversas anteriores"
+        title="Exemplos de conversa"
         description="Exemplos reais de atendimento para a assistente aprender o jeito da sua clínica."
       />
       <div className="mb-6 flex gap-3 rounded-xl border border-glow/30 bg-glow/10 p-4 text-sm">

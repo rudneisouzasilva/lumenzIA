@@ -152,12 +152,7 @@ export function Onboarding({
             />
           )}
           {step === 2 && (
-            <HoursForm
-              initial={hours}
-              showReminder={false}
-              submitLabel="Continuar"
-              onSaved={next}
-            />
+            <HoursForm initial={hours} submitLabel="Continuar" onSaved={next} />
           )}
           {step === 3 && <QuickFaqs onDone={next} />}
           {finished && <Done />}

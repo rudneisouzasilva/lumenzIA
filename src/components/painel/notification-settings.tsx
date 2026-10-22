@@ -16,12 +16,23 @@ import {
   type NotificationSettings,
   type StaffChannel,
 } from "@/lib/notifications/channels";
+import { REMINDER_OPTIONS } from "@/lib/painel/validation";
+import { cn } from "@/lib/utils";
 
 const CHANNEL_HINTS: Record<StaffChannel, string> = {
   whatsapp:
     "Mensagem pronta “Aviso para a equipe”, enviada pelo número da clínica. Conta como mensagem de utilidade na Meta.",
   email: "Enviado pela LumenzIA, sem custo para a clínica.",
 };
+
+const reminderLabel = (hours: number) =>
+  hours === 0
+    ? "Sem lembrete"
+    : hours === 24
+      ? "1 dia antes"
+      : hours === 48
+        ? "2 dias antes"
+        : `${hours} horas antes`;
 
 function Row({
   id,
@@ -57,26 +68,24 @@ function Row({
 }
 
 /**
- * Por onde a equipe é avisada (paciente pedindo atendimento, cota do plano acabou) e se o
- * lembrete de agendamento também vai por e-mail.
+ * Tudo do lembrete do paciente (quando e por onde sai, e onde fica o texto) e por onde a
+ * equipe é avisada (paciente pedindo atendimento, cota do plano acabou).
  */
 export function NotificationSettingsForm({
   initial,
   emailReady,
   bookingAsksEmail,
-  remindersOn,
 }: {
   initial: NotificationSettings;
   /** O envio de e-mail da LumenzIA está configurado. */
   emailReady: boolean;
-  /** O e-mail é pedido no agendamento (menu Agenda). */
+  /** O e-mail é pedido no agendamento (Roteiro de atendimento › Dados do agendamento). */
   bookingAsksEmail: boolean;
-  /** Há lembrete escolhido em Horários. */
-  remindersOn: boolean;
 }) {
   const [values, setValues] = useState(initial);
   const [pending, startTransition] = useTransition();
   const dirty = JSON.stringify(values) !== JSON.stringify(initial);
+  const remindersOn = values.reminderHoursBefore > 0;
 
   const toggle = (channel: StaffChannel, on: boolean) =>
     setValues({
@@ -101,6 +110,85 @@ export function NotificationSettingsForm({
         save();
       }}
     >
+      <section className="grid gap-4">
+        <div>
+          <h3 className="text-sm font-semibold">Lembretes para o paciente</h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Enviados antes do horário marcado, quando a agenda da clínica está
+            conectada. O texto é a mensagem pronta “Lembrete de agendamento”, em{" "}
+            <Link href="/painel/mensagens" className="underline">
+              Mensagens prontas
+            </Link>
+            .
+          </p>
+        </div>
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">Quando enviar</legend>
+          <div role="radiogroup" className="flex flex-wrap gap-2">
+            {REMINDER_OPTIONS.map((h) => {
+              const on = values.reminderHoursBefore === h;
+              return (
+                <button
+                  key={h}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() =>
+                    setValues({ ...values, reminderHoursBefore: h })
+                  }
+                  className={cn(
+                    "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+                    on
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "hover:bg-accent/50",
+                  )}
+                >
+                  {reminderLabel(h)}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+        <div className="divide-y rounded-xl border px-4 py-3">
+          <Row
+            id="reminder-whatsapp"
+            label="WhatsApp"
+            hint={
+              remindersOn
+                ? "Sempre enviado, pela mensagem pronta de lembrete."
+                : "Escolha acima quando enviar para ligar os lembretes."
+            }
+            checked={remindersOn}
+            disabled
+            onChange={() => {}}
+          />
+          <Row
+            id="reminder-email"
+            label="E-mail"
+            hint={
+              !emailReady ? (
+                "Ainda não disponível: a LumenzIA está configurando o envio de e-mails."
+              ) : !bookingAsksEmail ? (
+                <>
+                  Para usar, peça o e-mail em{" "}
+                  <Link href="/painel/dados-agendamento" className="underline">
+                    Dados do agendamento
+                  </Link>
+                  . Só recebe quem informou o e-mail.
+                </>
+              ) : (
+                "Vai também para o e-mail informado no agendamento, com o nome da clínica como remetente."
+              )
+            }
+            checked={values.reminderByEmail}
+            disabled={
+              !emailReady || (!bookingAsksEmail && !values.reminderByEmail)
+            }
+            onChange={(on) => setValues({ ...values, reminderByEmail: on })}
+          />
+        </div>
+      </section>
+
       <section className="grid gap-4">
         <div>
           <h3 className="text-sm font-semibold">Avisos para a equipe</h3>
@@ -155,65 +243,6 @@ export function NotificationSettingsForm({
               onChange={(e) => setValues({ ...values, email: e.target.value })}
             />
           </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4">
-        <div>
-          <h3 className="text-sm font-semibold">Lembretes para pacientes</h3>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {remindersOn ? (
-              <>
-                Enviados antes do horário marcado, no prazo escolhido em{" "}
-                <Link href="/painel/horarios" className="underline">
-                  Horários
-                </Link>
-                .
-              </>
-            ) : (
-              <>
-                Os lembretes estão desligados. Escolha quando enviar em{" "}
-                <Link href="/painel/horarios" className="underline">
-                  Horários
-                </Link>
-                .
-              </>
-            )}
-          </p>
-        </div>
-        <div className="divide-y rounded-xl border px-4 py-3">
-          <Row
-            id="reminder-whatsapp"
-            label="WhatsApp"
-            hint="Sempre enviado, pela mensagem pronta de lembrete."
-            checked
-            disabled
-            onChange={() => {}}
-          />
-          <Row
-            id="reminder-email"
-            label="E-mail"
-            hint={
-              !emailReady ? (
-                "Ainda não disponível: a LumenzIA está configurando o envio de e-mails."
-              ) : !bookingAsksEmail ? (
-                <>
-                  Para usar, peça o e-mail no agendamento em{" "}
-                  <Link href="/painel/agenda" className="underline">
-                    Agenda
-                  </Link>
-                  . Só recebe quem informou o e-mail.
-                </>
-              ) : (
-                "Vai também para o e-mail informado no agendamento, com o nome da clínica como remetente."
-              )
-            }
-            checked={values.reminderByEmail}
-            disabled={
-              !emailReady || (!bookingAsksEmail && !values.reminderByEmail)
-            }
-            onChange={(on) => setValues({ ...values, reminderByEmail: on })}
-          />
         </div>
       </section>
 
