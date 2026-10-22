@@ -24,6 +24,7 @@ senha e endereço dos jobs) a cada visita.
   10. `20261021000018_notification_channels.sql` (avisos à equipe e lembretes por e-mail)
   11. `20261021000019_instagram.sql` (Instagram: Direct e comentários)
   12. `20261022000020_clinica_experts.sql` (Clínica Experts conectado pela clínica)
+  13. `20261022000021_clinica_experts_webhook.sql` (avisos em tempo real do Clínica Experts)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
@@ -159,6 +160,12 @@ Experts (**Configurações → Integrações**), clica em **Conectar** no cartã
 /painel/agenda e cola a chave. A LumenzIA testa a chave na hora (lista os profissionais), guarda no
 Vault e mostra a escolha de profissionais. Com os profissionais ligados, a clínica liga a opção
 **A assistente usa o Clínica Experts** (isso desliga o Google Agenda, se estava em uso).
+
+Avisos em tempo real: depois da chave, o modal (e o cartão **Avisos em tempo real** na Agenda)
+mostra um endereço exclusivo da clínica, `.../api/webhooks/clinica-experts/<código>`. A clínica
+cadastra esse endereço nos webhooks do Clínica Experts com os eventos `booking.*`. A cada aviso, a
+LumenzIA relê a agenda dos próximos dias pela API e atualiza a cópia local dos lembretes; o painel
+mostra a hora do último aviso recebido.
 
 - [ ] Testar com uma conta real: conectar, ligar os profissionais e, na conversa de teste do
       WhatsApp, pedir horários, marcar e cancelar. Se algo falhar, a mensagem completa da API fica

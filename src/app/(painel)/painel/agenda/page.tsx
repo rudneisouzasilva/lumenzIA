@@ -16,6 +16,7 @@ import {
   listCeProfessionals,
   type CeProfessional,
 } from "@/lib/clinica-experts/client";
+import { getAppUrl } from "@/lib/app-url";
 import { googleCredentials, listCalendars } from "@/lib/google/client";
 import { getPanelContext } from "@/lib/painel/context";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -99,7 +100,7 @@ async function Settings({
       .throwOnError(),
     supabase
       .from("clinica_experts_accounts")
-      .select("status, last_error")
+      .select("status, last_error, last_webhook_at")
       .eq("clinic_id", clinic.id)
       .maybeSingle()
       .throwOnError(),
@@ -126,6 +127,17 @@ async function Settings({
   // Os profissionais do Clínica Experts, lidos agora, para ligar aos daqui.
   let ceProfessionals: CeProfessional[] = [];
   let ceError = ceAccount?.status === "ativo" ? null : ceAccount?.last_error;
+  // O endereço dos avisos leva o código secreto da clínica (só o servidor lê).
+  let webhookUrl: string | null = null;
+  if (ceAccount) {
+    const { data } = await admin
+      .from("clinica_experts_accounts")
+      .select("webhook_token")
+      .eq("clinic_id", clinic.id)
+      .single()
+      .throwOnError();
+    webhookUrl = `${await getAppUrl()}/api/webhooks/clinica-experts/${data.webhook_token}`;
+  }
   if (ceAccount?.status === "ativo") {
     try {
       const apiKey = await clinicKey(clinic.id);
@@ -183,6 +195,7 @@ async function Settings({
         clinicaExperts={{
           connected: Boolean(ceAccount),
           broken: ceAccount?.status === "desconectado",
+          webhookUrl,
           inUse: usingCe,
         }}
       />
@@ -191,6 +204,10 @@ async function Settings({
         <ClinicaExpertsSettings
           inUse={usingCe}
           error={ceError ?? null}
+          webhook={{
+            url: webhookUrl ?? "",
+            lastAt: ceAccount.last_webhook_at,
+          }}
           ceProfessionals={ceProfessionals}
           main={{
             value: integration.ce_professional_uuid,

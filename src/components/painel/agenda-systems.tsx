@@ -6,10 +6,13 @@ import {
   ArrowRight,
   CalendarCheck,
   CalendarDays,
+  Check,
+  Copy,
   ExternalLink,
   Feather,
   KeyRound,
   Loader2,
+  Radio,
   Settings2,
   Unplug,
 } from "lucide-react";
@@ -142,7 +145,12 @@ export function AgendaSystems({
   clinicaExperts,
 }: {
   google: { ready: boolean; connected: boolean; inUse: boolean };
-  clinicaExperts: { connected: boolean; broken: boolean; inUse: boolean };
+  clinicaExperts: {
+    connected: boolean;
+    broken: boolean;
+    inUse: boolean;
+    webhookUrl: string | null;
+  };
 }) {
   const [connectOpen, setConnectOpen] = useState(false);
   const googleStatus: Status = google.inUse
@@ -244,6 +252,7 @@ export function AgendaSystems({
       <ClinicaExpertsConnectDialog
         open={connectOpen}
         onOpenChange={setConnectOpen}
+        webhookUrl={clinicaExperts.webhookUrl}
       />
     </div>
   );
@@ -253,13 +262,16 @@ export function AgendaSystems({
 function ClinicaExpertsConnectDialog({
   open,
   onOpenChange,
+  webhookUrl,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  webhookUrl: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"chave" | "avisos">("chave");
 
   const submit = () =>
     startTransition(async () => {
@@ -269,88 +281,185 @@ function ClinicaExpertsConnectDialog({
         setError(result.error ?? "Não foi possível conectar.");
         return;
       }
-      toast.success(
-        "Clínica Experts conectado ✅ Agora ligue os profissionais.",
-      );
+      toast.success("Clínica Experts conectado ✅");
       setKey("");
-      onOpenChange(false);
+      setStep("avisos");
     });
 
   return (
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v) setError(null);
+        if (!v) {
+          setError(null);
+          setStep("chave");
+        }
         onOpenChange(v);
       }}
     >
-      <DialogContent className="sm:max-w-lg">
-        <DialogTitle>Conectar com o Clínica Experts</DialogTitle>
-        <DialogDescription>
-          A LumenzIA usa a chave de API da sua conta para ver os horários livres
-          e marcar os agendamentos.
-        </DialogDescription>
-        <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
-          <li>Entre no seu painel do Clínica Experts.</li>
-          <li>
-            Vá em <strong className="text-foreground">Configurações</strong> e
-            abra a aba <strong className="text-foreground">Integrações</strong>.
-          </li>
-          <li>Crie uma chave de API (ou copie a que já existe).</li>
-          <li>Cole a chave abaixo e clique em Testar e salvar.</li>
-        </ol>
-        <form
-          className="grid gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <div className="grid gap-2">
-            <Label htmlFor="ce-key">Chave de API</Label>
-            <Input
-              id="ce-key"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="Cole aqui a chave do Clínica Experts"
-              autoComplete="off"
-              spellCheck={false}
-              aria-invalid={Boolean(error)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <KeyRound className="size-3.5" />A chave fica guardada
-              criptografada e nunca aparece de novo no painel.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <a
-              href="https://clinicaexperts.readme.io/reference/introduction"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
-            >
-              Ajuda do Clínica Experts
-              <ExternalLink className="size-3" />
-            </a>
-            <div className="flex gap-2">
-              <DialogClose asChild>
-                <Button type="button" variant="ghost">
-                  Cancelar
-                </Button>
-              </DialogClose>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+        {step === "avisos" ? (
+          <>
+            <DialogTitle>Passo 2: avisos em tempo real</DialogTitle>
+            <DialogDescription>
+              Assim, quando a recepção marca, remarca ou cancela direto no
+              Clínica Experts, a LumenzIA fica sabendo na hora e os lembretes
+              saem certos.
+            </DialogDescription>
+            {webhookUrl ? (
+              <WebhookSteps url={webhookUrl} />
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Gerando o endereço da clínica...
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
               <Button
-                type="submit"
-                disabled={pending || key.trim().length < 10}
+                variant="ghost"
+                onClick={() => {
+                  setStep("chave");
+                  onOpenChange(false);
+                }}
               >
-                {pending && <Loader2 className="animate-spin" />}
-                Testar e salvar
+                Fazer depois
+              </Button>
+              <Button
+                onClick={() => {
+                  setStep("chave");
+                  onOpenChange(false);
+                  toast.success("Agora ligue os profissionais abaixo.");
+                }}
+              >
+                Já cadastrei
               </Button>
             </div>
-          </div>
-        </form>
+          </>
+        ) : (
+          <>
+            <DialogTitle>Conectar com o Clínica Experts</DialogTitle>
+            <DialogDescription>
+              A LumenzIA usa a chave de API da sua conta para ver os horários
+              livres e marcar os agendamentos.
+            </DialogDescription>
+            <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
+              <li>Entre no seu painel do Clínica Experts.</li>
+              <li>
+                Vá em <strong className="text-foreground">Configurações</strong>{" "}
+                e abra a aba{" "}
+                <strong className="text-foreground">Integrações</strong>.
+              </li>
+              <li>Crie uma chave de API (ou copie a que já existe).</li>
+              <li>Cole a chave abaixo e clique em Testar e salvar.</li>
+            </ol>
+            <form
+              className="grid gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+              }}
+            >
+              <div className="grid gap-2">
+                <Label htmlFor="ce-key">Chave de API</Label>
+                <Input
+                  id="ce-key"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  placeholder="Cole aqui a chave do Clínica Experts"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={Boolean(error)}
+                />
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <KeyRound className="size-3.5" />A chave fica guardada
+                  criptografada e nunca aparece de novo no painel.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <a
+                  href="https://clinicaexperts.readme.io/reference/introduction"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+                >
+                  Ajuda do Clínica Experts
+                  <ExternalLink className="size-3" />
+                </a>
+                <div className="flex gap-2">
+                  <DialogClose asChild>
+                    <Button type="button" variant="ghost">
+                      Cancelar
+                    </Button>
+                  </DialogClose>
+                  <Button
+                    type="submit"
+                    disabled={pending || key.trim().length < 10}
+                  >
+                    {pending && <Loader2 className="animate-spin" />}
+                    Testar e salvar
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** O endereço exclusivo da clínica, com o passo a passo para cadastrar no Clínica Experts. */
+function WebhookSteps({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Não deu para copiar. Selecione o endereço e copie à mão.");
+    }
+  };
+  return (
+    <div className="grid gap-3">
+      <div className="grid gap-2">
+        <Label htmlFor="ce-webhook">Endereço da clínica</Label>
+        <div className="flex gap-2">
+          <Input
+            id="ce-webhook"
+            readOnly
+            value={url}
+            onFocus={(e) => e.currentTarget.select()}
+            className="font-mono text-xs"
+          />
+          <Button type="button" variant="outline" onClick={copy}>
+            {copied ? <Check /> : <Copy />}
+            {copied ? "Copiado" : "Copiar"}
+          </Button>
+        </div>
+      </div>
+      <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
+        <li>Copie o endereço acima.</li>
+        <li>
+          No Clínica Experts, vá em{" "}
+          <strong className="text-foreground">Configurações</strong> →{" "}
+          <strong className="text-foreground">Integrações</strong> e abra a
+          parte de <strong className="text-foreground">Webhooks</strong>.
+        </li>
+        <li>Adicione um webhook novo e cole o endereço.</li>
+        <li>
+          Marque os eventos de agendamento:{" "}
+          <span className="text-foreground">
+            criado, atualizado, remarcado, cancelado e excluído
+          </span>{" "}
+          (os que começam com <code>booking.</code>). Salve.
+        </li>
+      </ol>
+      <p className="text-xs text-muted-foreground">
+        O endereço é só desta clínica: não compartilhe fora da equipe.
+      </p>
+    </div>
   );
 }
 
@@ -365,12 +474,14 @@ type ProfessionalItem = {
 export function ClinicaExpertsSettings({
   inUse,
   error,
+  webhook,
   ceProfessionals,
   main,
   professionals,
 }: {
   inUse: boolean;
   error: string | null;
+  webhook: { url: string; lastAt: string | null };
   ceProfessionals: CeProfessional[];
   main: { value: string | null; name: string };
   professionals: ProfessionalItem[];
@@ -533,6 +644,30 @@ export function ClinicaExpertsSettings({
             </Button>
           </div>
         </form>
+      </PanelCard>
+
+      <PanelCard
+        title="Avisos em tempo real"
+        description="Cadastre este endereço nos webhooks do Clínica Experts. Assim, o que a recepção marca, remarca ou cancela por lá chega na hora à LumenzIA."
+      >
+        <WebhookSteps url={webhook.url} />
+        <p
+          className={cn(
+            "mt-4 flex items-center gap-2 text-sm",
+            webhook.lastAt
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-muted-foreground",
+          )}
+        >
+          <Radio className="size-4" />
+          {webhook.lastAt
+            ? `Último aviso recebido: ${new Intl.DateTimeFormat("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                dateStyle: "short",
+                timeStyle: "short",
+              }).format(new Date(webhook.lastAt))}`
+            : "Nenhum aviso recebido ainda. Depois de cadastrar, altere um agendamento no Clínica Experts para testar."}
+        </p>
       </PanelCard>
 
       <PanelCard>
