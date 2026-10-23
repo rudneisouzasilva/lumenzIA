@@ -24,7 +24,7 @@ const connectSchema = z.object({
 
 /** Só a dona da clínica conecta ou desconecta o número (é a conta dela na Meta). */
 async function ownerContext() {
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("whatsapp");
   if ("error" in ctx) return ctx;
   if (ctx.clinic.role !== "owner") {
     return {

@@ -295,10 +295,62 @@ export type Database = {
           },
         ];
       };
+      clinic_invites: {
+        Row: {
+          accepted_at: string | null;
+          accepted_by: string | null;
+          clinic_id: string;
+          created_at: string;
+          created_by: string | null;
+          email: string;
+          expires_at: string;
+          full_name: string;
+          id: string;
+          permissions: string[];
+          token_hash: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          clinic_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          email: string;
+          expires_at?: string;
+          full_name: string;
+          id?: string;
+          permissions?: string[];
+          token_hash: string;
+        };
+        Update: {
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          clinic_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          email?: string;
+          expires_at?: string;
+          full_name?: string;
+          id?: string;
+          permissions?: string[];
+          token_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_invites_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       clinic_members: {
         Row: {
           clinic_id: string;
           created_at: string;
+          permissions: string[] | null;
           role: Database["public"]["Enums"]["member_role"];
           user_id: string;
         };
@@ -306,12 +358,14 @@ export type Database = {
         Insert: {
           clinic_id: string;
           created_at?: string;
+          permissions?: string[] | null;
           role?: Database["public"]["Enums"]["member_role"];
           user_id: string;
         };
         Update: {
           clinic_id?: string;
           created_at?: string;
+          permissions?: string[] | null;
           role?: Database["public"]["Enums"]["member_role"];
           user_id?: string;
         };
@@ -1744,6 +1798,18 @@ export type Database = {
         Args: { p_clinic_id: string; p_from: string; p_to: string };
         Returns: Json;
       };
+      clinic_member_emails: {
+        Args: { p_clinic_id: string };
+        Returns: {
+          created_at: string;
+          email: string;
+          full_name: string;
+          last_sign_in_at: string | null;
+          permissions: string[] | null;
+          role: Database["public"]["Enums"]["member_role"];
+          user_id: string;
+        }[];
+      };
       count_ai_message: {
         Args: { p_subscription_id: string };
         Returns: undefined;
@@ -1818,9 +1884,14 @@ export type Database = {
         Returns: Json;
       };
       invoke_cron_route: { Args: { p_path: string }; Returns: number };
+      is_clinic_owner: { Args: { p_clinic_id: string }; Returns: boolean };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_clinic_member: { Args: { p_clinic_id: string }; Returns: boolean };
       launch_status: { Args: { p_cron_secret: string }; Returns: Json };
+      member_can: {
+        Args: { p_area: string; p_clinic_id: string };
+        Returns: boolean;
+      };
       link_instagram_phone: {
         Args: { p_contact_id: string; p_phone: string };
         Returns: boolean;

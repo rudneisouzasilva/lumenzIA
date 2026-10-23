@@ -10,6 +10,7 @@ import {
   getMyClinic,
   pickActiveSubscription,
 } from "@/lib/billing/subscription";
+import { canAccess, type Area } from "@/lib/painel/areas";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -44,9 +45,12 @@ type ActionContext =
 
 /**
  * O mesmo, para Server Actions: em vez de redirecionar, devolve o motivo para mostrar na tela.
- * A clínica vem sempre do login, nunca do navegador.
+ * A clínica vem sempre do login, nunca do navegador. `area` confere se a pessoa da equipe pode
+ * mexer nessa parte do painel (com uma lista, basta uma delas; "owner": só a dona).
  */
-export async function getActionContext(): Promise<ActionContext> {
+export async function getActionContext(
+  area?: Area | Area[] | "owner",
+): Promise<ActionContext> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -55,6 +59,13 @@ export async function getActionContext(): Promise<ActionContext> {
 
   const clinic = await getMyClinic(supabase, user.id);
   if (!clinic) return { error: "Sua conta não está ligada a uma clínica." };
+  if (area === "owner" && clinic.role !== "owner") {
+    return { error: "Só a dona da conta pode fazer isso." };
+  }
+  const areas = area === undefined || area === "owner" ? [] : [area].flat();
+  if (areas.length && !areas.some((a) => canAccess(clinic.access, a))) {
+    return { error: "Você não tem acesso a esta parte do painel." };
+  }
 
   const active = pickActiveSubscription(
     await getClinicSubscriptions(supabase, clinic.id),

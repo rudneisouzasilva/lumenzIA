@@ -9,6 +9,7 @@ import {
   Images,
   LayoutDashboard,
   ListChecks,
+  Lock,
   MessageCircleQuestion,
   Rocket,
   Smartphone,
@@ -19,26 +20,28 @@ import {
 import { AssistantToggle } from "@/components/painel/assistant-toggle";
 import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
 import { Button } from "@/components/ui/button";
+import { NAV_SECTIONS } from "@/components/painel/nav";
+import { areaForPath, canAccess, type Area } from "@/lib/painel/areas";
 import { getPanelContext } from "@/lib/painel/context";
 import { getClinicSettings } from "@/lib/painel/data";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Início" };
 
-export default function OverviewPage() {
+export default function OverviewPage({ searchParams }: PageProps<"/painel">) {
   return (
     <>
+      <Suspense fallback={null}>
+        <DeniedNotice searchParams={searchParams} />
+      </Suspense>
       <PageHeader
         icon={LayoutDashboard}
         title="Início"
         description="Como está a sua assistente hoje e o que ainda falta configurar."
       >
-        <Button asChild variant="outline">
-          <Link href="/painel/testar">
-            <FlaskConical />
-            Testar assistente
-          </Link>
-        </Button>
+        <Suspense fallback={null}>
+          <TestButton />
+        </Suspense>
       </PageHeader>
       <Suspense fallback={<PanelSkeleton />}>
         <Overview />
@@ -47,8 +50,39 @@ export default function OverviewPage() {
   );
 }
 
+async function TestButton() {
+  const { clinic } = await getPanelContext();
+  if (!canAccess(clinic.access, "testar")) return null;
+  return (
+    <Button asChild variant="outline">
+      <Link href="/painel/testar">
+        <FlaskConical />
+        Testar assistente
+      </Link>
+    </Button>
+  );
+}
+
+/** Aviso de quem tentou abrir uma tela que a dona não liberou (o proxy manda para cá). */
+async function DeniedNotice({
+  searchParams,
+}: Pick<PageProps<"/painel">, "searchParams">) {
+  const { acesso } = await searchParams;
+  if (acesso !== "negado") return null;
+  return (
+    <p className="mb-6 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+      <Lock className="size-4 shrink-0" />
+      Essa parte do painel não foi liberada para você. Peça à responsável pela
+      clínica, se precisar.
+    </p>
+  );
+}
+
 async function Overview() {
   const { supabase, clinic } = await getPanelContext();
+  if (!clinic.access.owner && clinic.access.areas !== null) {
+    return <StaffHome areas={clinic.access.areas} />;
+  }
   const count = (
     table: "faqs" | "images" | "services" | "professionals" | "ai_questions",
   ) =>
@@ -323,5 +357,40 @@ function ProgressRing({ percent }: { percent: number }) {
         {percent}%
       </span>
     </div>
+  );
+}
+
+/** Início de quem é da equipe com acesso só a algumas telas: atalhos para elas. */
+function StaffHome({ areas }: { areas: Area[] }) {
+  const items = NAV_SECTIONS.flatMap((s) => s.items).filter((item) => {
+    const area = areaForPath(item.href);
+    return area !== null && areas.includes(area);
+  });
+  return (
+    <PanelCard
+      title="Suas telas"
+      description="As partes do painel que a responsável pela clínica liberou para você."
+    >
+      {items.length ? (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {items.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className="group flex items-center gap-3 rounded-xl border p-4 text-sm transition-colors hover:bg-accent/50"
+              >
+                <item.icon className="size-5 text-primary" />
+                <span className="flex-1 font-medium">{item.label}</span>
+                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Nenhuma tela foi liberada ainda. Peça à responsável pela clínica.
+        </p>
+      )}
+    </PanelCard>
   );
 }

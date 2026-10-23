@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import { resetPasswordSchema, type FormResult } from "@/lib/auth/validation";
+import type { Area } from "@/lib/painel/areas";
 import { getActionContext } from "@/lib/painel/context";
 import type { Database } from "@/lib/supabase/database.types";
 import {
@@ -35,6 +36,15 @@ function fail(error: string): Failure {
   return { ok: false, error };
 }
 
+/** Área do painel de cada lista (a mesma das políticas do banco, migração 0023). */
+const LIST_AREAS: Record<ListKind, Area> = {
+  faqs: "conhecimento",
+  ai_questions: "roteiro",
+  contact_reasons: "relatorios",
+  services: "procedimentos",
+  professionals: "profissionais",
+};
+
 const invalid = () => fail("Confira os campos destacados.");
 const saveError = (where: string, message: string) => {
   console.error(`[painel] ${where}:`, message);
@@ -43,6 +53,7 @@ const saveError = (where: string, message: string) => {
 
 /** Atualiza colunas de conteúdo da própria clínica (o RLS e o GRANT por coluna conferem de novo). */
 async function updateClinic(
+  area: Area | "owner",
   where: string,
   values: {
     name?: string;
@@ -61,7 +72,7 @@ async function updateClinic(
   },
   existing?: ActionContext,
 ): Promise<FormResult> {
-  const ctx = existing ?? (await getActionContext());
+  const ctx = existing ?? (await getActionContext(area));
   if ("error" in ctx) return fail(ctx.error);
 
   const { error } = await ctx.supabase
@@ -80,7 +91,7 @@ async function updateClinic(
 export async function saveIdentity(input: unknown) {
   const parsed = identitySchema.safeParse(input);
   if (!parsed.success) return invalid();
-  return updateClinic("identidade", {
+  return updateClinic("assistente", "identidade", {
     assistant_name: parsed.data.assistantName,
     tone: parsed.data.tone,
   });
@@ -89,7 +100,7 @@ export async function saveIdentity(input: unknown) {
 export async function saveKnowledge(input: unknown) {
   const parsed = knowledgeSchema.safeParse(input);
   if (!parsed.success) return invalid();
-  return updateClinic("informações", {
+  return updateClinic("assistente", "informações", {
     business_info: parsed.data.businessInfo,
   });
 }
@@ -97,7 +108,7 @@ export async function saveKnowledge(input: unknown) {
 export async function saveRules(input: unknown) {
   const parsed = rulesSchema.safeParse(input);
   if (!parsed.success) return invalid();
-  return updateClinic("regras", {
+  return updateClinic("assistente", "regras", {
     behavior_rules: parsed.data.behaviorRules,
     conversation_timeout_hours: parsed.data.timeoutHours
       ? Number(parsed.data.timeoutHours)
@@ -108,14 +119,14 @@ export async function saveRules(input: unknown) {
 export async function savePastConversations(input: unknown) {
   const parsed = pastConversationsSchema.safeParse(input);
   if (!parsed.success) return invalid();
-  return updateClinic("conversas anteriores", {
+  return updateClinic("conhecimento", "conversas anteriores", {
     past_conversations: parsed.data.pastConversations,
   });
 }
 
 /** Liga ou desliga a assistente no WhatsApp (só depois que o número foi conectado). */
 export async function setAssistantActive(active: boolean): Promise<FormResult> {
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(["assistente", "whatsapp"]);
   if ("error" in ctx) return fail(ctx.error);
 
   if (active) {
@@ -130,7 +141,12 @@ export async function setAssistantActive(active: boolean): Promise<FormResult> {
       );
     }
   }
-  return updateClinic("ligar assistente", { is_active: Boolean(active) }, ctx);
+  return updateClinic(
+    "assistente",
+    "ligar assistente",
+    { is_active: Boolean(active) },
+    ctx,
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -142,7 +158,7 @@ export async function saveHours(input: unknown): Promise<FormResult> {
   if (!parsed.success) return invalid();
   const v = parsed.data;
 
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("horarios");
   if ("error" in ctx) return fail(ctx.error);
 
   const { error } = await ctx.supabase
@@ -188,7 +204,7 @@ export async function saveListItem(
   const parsed = listSchemas[kind].safeParse(input);
   if (!parsed.success) return invalid();
 
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(LIST_AREAS[kind]);
   if ("error" in ctx) return { ok: false, error: ctx.error };
   const table = listTable(ctx.supabase, kind);
   const values = parsed.data as unknown as { question: string; answer: string };
@@ -237,7 +253,7 @@ export async function deleteListItem(
 ): Promise<FormResult> {
   if (!kindSchema.safeParse(kind).success || !idSchema.safeParse(id).success)
     return invalid();
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(LIST_AREAS[kind]);
   if ("error" in ctx) return fail(ctx.error);
 
   const { error } = await listTable(ctx.supabase, kind)
@@ -259,7 +275,7 @@ export async function reorderList(
     .safeParse({ kind, ids });
   if (!parsed.success) return invalid();
 
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(LIST_AREAS[kind]);
   if ("error" in ctx) return fail(ctx.error);
 
   const results = await Promise.all(
@@ -295,7 +311,7 @@ export async function createImage(input: {
   if (!parsed.success)
     return { ok: false, error: "Descreva quando enviar a foto." };
 
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("conhecimento");
   if ("error" in ctx) return { ok: false, error: ctx.error };
 
   // Só aceita arquivos na pasta da própria clínica, com o nome gerado pelo painel.
@@ -341,7 +357,7 @@ export async function updateImageDescription(
 ): Promise<FormResult> {
   const parsed = imageDescriptionSchema.safeParse(input);
   if (!parsed.success || !idSchema.safeParse(id).success) return invalid();
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("conhecimento");
   if ("error" in ctx) return fail(ctx.error);
 
   const { error } = await ctx.supabase
@@ -356,7 +372,7 @@ export async function updateImageDescription(
 
 export async function deleteImage(id: string): Promise<FormResult> {
   if (!idSchema.safeParse(id).success) return invalid();
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("conhecimento");
   if ("error" in ctx) return fail(ctx.error);
 
   const { data, error } = await ctx.supabase
@@ -401,11 +417,14 @@ export async function saveProfile(input: unknown): Promise<FormResult> {
 export async function saveClinicName(input: unknown): Promise<FormResult> {
   const parsed = clinicNameSchema.safeParse(input);
   if (!parsed.success) return invalid();
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("owner");
   if ("error" in ctx) return fail(ctx.error);
-  if (ctx.clinic.role !== "owner")
-    return fail("Só a dona da conta pode mudar o nome da clínica.");
-  return updateClinic("nome da clínica", { name: parsed.data.name }, ctx);
+  return updateClinic(
+    "owner",
+    "nome da clínica",
+    { name: parsed.data.name },
+    ctx,
+  );
 }
 
 export async function changePassword(input: unknown): Promise<FormResult> {

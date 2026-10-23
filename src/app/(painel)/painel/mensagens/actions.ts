@@ -43,7 +43,7 @@ function templateName(title: string) {
 
 /** Cria o pacote de mensagens prontas que faltar e manda para a aprovação da Meta. */
 export async function createTemplatePackAction(): Promise<FormResult> {
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("mensagens");
   if ("error" in ctx) return fail(ctx.error);
   try {
     const errors = await ensureTemplatePack(ctx.clinic.id);
@@ -57,7 +57,7 @@ export async function createTemplatePackAction(): Promise<FormResult> {
 
 /** Atualiza o status de todas com a Meta e traz as que a clínica criou por lá. */
 export async function syncTemplatesAction(): Promise<FormResult> {
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("mensagens");
   if ("error" in ctx) return fail(ctx.error);
   try {
     const error = await syncTemplates(ctx.clinic.id);
@@ -83,7 +83,7 @@ export async function saveTemplateAction(input: unknown): Promise<FormResult> {
     return fail("Dê um exemplo para cada variável: a Meta exige.");
   }
 
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("mensagens");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
 

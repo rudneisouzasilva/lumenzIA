@@ -69,7 +69,7 @@ export async function signIn(
   const target = safeNextPath(next);
   const blocked =
     target === "/painel" || target.startsWith("/painel/")
-      ? await panelRedirect(supabase, data.user.id)
+      ? await panelRedirect(supabase, data.user.id, target)
       : null;
   redirect(blocked ?? target);
 }

@@ -42,7 +42,7 @@ async function setAttendance(
 ): Promise<AttendanceResult> {
   const id = idSchema.safeParse(conversationId);
   if (!id.success) return fail("Conversa inválida.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("conversas");
   if ("error" in ctx) return fail(ctx.error);
 
   const { data, error } = await ctx.supabase
@@ -85,7 +85,7 @@ export async function sendStaffReply(
     return fail(
       "Escreva uma mensagem de até 4000 caracteres ou escolha uma foto.",
     );
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("conversas");
   if ("error" in ctx) return fail(ctx.error);
   const { conversationId, message, imageId } = parsed.data;
 
@@ -227,7 +227,7 @@ export async function endConversation(
 ): Promise<AttendanceResult> {
   const id = idSchema.safeParse(conversationId);
   if (!id.success) return fail("Conversa inválida.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("conversas");
   if ("error" in ctx) return fail(ctx.error);
 
   const { data: conversation } = await ctx.supabase
@@ -275,7 +275,7 @@ export async function sendTemplateToContact(
     return { ok: false, error: "Preencha todos os campos da mensagem." };
   }
   const v = parsed.data;
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(["conversas", "funil"]);
   if ("error" in ctx) return { ok: false, error: ctx.error };
   const admin = createAdminClient();
 

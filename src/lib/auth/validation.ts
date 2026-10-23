@@ -48,6 +48,23 @@ export const resetPasswordSchema = z
     message: "As senhas não conferem.",
   });
 
+/** Conta criada pelo link de convite da equipe (o e-mail vem do convite). */
+export const inviteSignUpSchema = z
+  .object({
+    fullName: z
+      .string()
+      .trim()
+      .min(2, "Informe seu nome.")
+      .max(120, "Nome muito longo."),
+    password,
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, {
+    path: ["confirm"],
+    message: "As senhas não conferem.",
+  });
+
+export type InviteSignUpInput = z.infer<typeof inviteSignUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

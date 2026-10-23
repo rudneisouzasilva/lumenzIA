@@ -26,6 +26,7 @@ import {
   Tags,
   UserCog,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -260,9 +261,15 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
 export const NAV_FOOTER: NavItem[] = [
   {
     href: "/painel/conta",
-    label: "Minha conta e equipe",
+    label: "Minha conta",
     icon: UserCog,
-    keywords: "perfil senha telefone equipe",
+    keywords: "perfil senha telefone",
+  },
+  {
+    href: "/painel/equipe",
+    label: "Equipe",
+    icon: UsersRound,
+    keywords: "convidar convite pessoas acesso permissões telas funcionários",
   },
   {
     href: "/assinatura",

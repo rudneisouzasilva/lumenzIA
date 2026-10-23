@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+import { usePanelAccess, visibleFor } from "./access-store";
 import { CommandPalette } from "./command-palette";
 import {
   NAV_FOOTER,
@@ -217,10 +218,15 @@ function SidebarNav({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const access = usePanelAccess();
+  const sections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => visibleFor(access, item.href)),
+  })).filter((section) => section.items.length > 0);
   return (
     <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
       <div className="flex-1 space-y-6">
-        {NAV_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.title}>
             <p
               className={cn(
@@ -245,14 +251,16 @@ function SidebarNav({
       </div>
       {/* A conta fica no rodapé: é usada de vez em quando, não no dia a dia. */}
       <ul className="mt-6 space-y-1 border-t pt-4">
-        {NAV_FOOTER.map((item) => (
-          <NavLink
-            key={item.href}
-            item={item}
-            collapsed={collapsed}
-            onNavigate={onNavigate}
-          />
-        ))}
+        {NAV_FOOTER.filter((item) => visibleFor(access, item.href)).map(
+          (item) => (
+            <NavLink
+              key={item.href}
+              item={item}
+              collapsed={collapsed}
+              onNavigate={onNavigate}
+            />
+          ),
+        )}
       </ul>
     </nav>
   );

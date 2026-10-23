@@ -35,7 +35,7 @@ function analysisPeriod(now = new Date()) {
  * enquanto a IA trabalha; se ela falhar, a reserva é desfeita para tentar de novo.
  */
 export async function generateInsightsAction(): Promise<FormResult> {
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("relatorios");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
   const period = analysisPeriod();
