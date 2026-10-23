@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { aiProviderLabel } from "@/lib/ai/provider";
 import { site, whatsappLink } from "@/lib/site";
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
     "Como a LumenzIA trata dados pessoais, em conformidade com a LGPD.",
 };
 
-// Os trechos [ENTRE COLCHETES] precisam ser preenchidos com os dados da empresa e o texto deve ser
+// Os trechos [ENTRE COLCHETES] (razão social, CNPJ e endereço) precisam ser preenchidos com os dados da empresa e o texto deve ser
 // revisado por um advogado antes de ir ao ar.
 export default function PrivacyPage() {
   return (
@@ -29,8 +30,14 @@ export default function PrivacyPage() {
       <h2>1. Quem somos</h2>
       <p>
         [RAZÃO SOCIAL], CNPJ [00.000.000/0000-00], com sede em [ENDEREÇO
-        COMPLETO]. Contato para assuntos de privacidade: [E-MAIL DE CONTATO] ou
-        WhatsApp {site.whatsappLabel}.
+        COMPLETO]. Contato para assuntos de privacidade:{" "}
+        <a
+          href={`mailto:${site.privacyEmail}`}
+          className="text-primary underline underline-offset-4"
+        >
+          {site.privacyEmail}
+        </a>{" "}
+        ou WhatsApp {site.whatsappLabel}.
       </p>
 
       <h2>2. Papéis: quem decide sobre os dados</h2>
@@ -197,7 +204,23 @@ export default function PrivacyPage() {
         primeiro a clínica, que é a controladora; nós auxiliamos a clínica no
         atendimento a essas solicitações.
       </p>
-      <p>Para exercer seus direitos, escreva para [E-MAIL DE CONTATO].</p>
+      <p>
+        Para exercer seus direitos, escreva para{" "}
+        <a
+          href={`mailto:${site.privacyEmail}`}
+          className="text-primary underline underline-offset-4"
+        >
+          {site.privacyEmail}
+        </a>
+        . O passo a passo para pedir a exclusão dos seus dados está em{" "}
+        <Link
+          href="/exclusao-de-dados"
+          className="text-primary underline underline-offset-4"
+        >
+          Exclusão de dados
+        </Link>
+        .
+      </p>
 
       <h2>8. Segurança</h2>
       <p>
@@ -230,7 +253,14 @@ export default function PrivacyPage() {
 
       <h2>12. Contato</h2>
       <p>
-        Dúvidas sobre privacidade: [E-MAIL DE CONTATO] ou WhatsApp{" "}
+        Dúvidas sobre privacidade:{" "}
+        <a
+          href={`mailto:${site.privacyEmail}`}
+          className="text-primary underline underline-offset-4"
+        >
+          {site.privacyEmail}
+        </a>{" "}
+        ou WhatsApp{" "}
         <a
           href={whatsappLink()}
           target="_blank"

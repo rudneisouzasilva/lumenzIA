@@ -25,6 +25,8 @@ senha e endereço dos jobs) a cada visita.
   11. `20261021000019_instagram.sql` (Instagram: Direct e comentários)
   12. `20261022000020_clinica_experts.sql` (Clínica Experts conectado pela clínica)
   13. `20261022000021_clinica_experts_webhook.sql` (avisos em tempo real do Clínica Experts)
+  14. `20261022000022_access_grants.sql` (aba **Acessos** do /admin: plano liberado por alguns
+      dias, sem cobrança)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
@@ -98,7 +100,8 @@ Signup) da Meta. O token de cada clínica fica no Vault.
    - [ ] `WHATSAPP_VERIFY_TOKEN`: uma senha longa inventada por você (só serve para a Meta
          confirmar o webhook).
 4. **App settings → Basic**: App domains com o domínio, Privacy Policy URL
-   `https://lumenzia.com.br/privacidade`, ícone e categoria.
+   `https://lumenzia.com.br/privacidade`, User data deletion → **Data deletion instructions URL**
+   `https://lumenzia.com.br/exclusao-de-dados`, ícone e categoria.
 5. **WhatsApp → Configuration → Webhook**: Callback URL
    `https://lumenzia.com.br/api/webhooks/whatsapp` e o mesmo `WHATSAPP_VERIFY_TOKEN`. Assinar os
    campos:
@@ -217,7 +220,18 @@ privacidade.
 ## 6. Conteúdo e jurídico
 
 - [ ] Política de privacidade (`src/app/(site)/privacidade/page.tsx`): preencher os textos
-      `[ENTRE COLCHETES]` com os dados da empresa e passar por revisão jurídica.
+      `[ENTRE COLCHETES]` (razão social, CNPJ e endereço) e passar por revisão jurídica. O e-mail
+      de contato já é `privacidade@lumenzia.com.br` (em `src/lib/site.ts`).
+- Exclusão de dados: a página `/exclusao-de-dados` explica como clínicas e pacientes pedem a
+  exclusão (é a URL que a Meta pede no app). Os pedidos chegam em `privacidade@lumenzia.com.br`.
+
+## 6b. Demonstrações e cortesias
+
+Na aba **Acessos** do /admin, a equipe libera um plano por 1 a 365 dias, sem cobrança, para uma
+clínica que já criou a conta em /cadastro. O acesso termina sozinho; dá para encerrar antes ou
+liberar de novo (ajusta o plano e o fim). Se a clínica assinar durante o período, os dias que
+faltavam passam para o plano pago. Tudo fica na auditoria.
+
 - [ ] Conferir preços e textos dos planos (`supabase/migrations/20261019000004_plans.sql` ou a
       tabela `plans` no Supabase).
 - [ ] Dados do Lumia: decidido começar com o banco vazio, então não há migração do SQL Server.

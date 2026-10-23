@@ -15,6 +15,9 @@ export function SiteFooter() {
           <Link href="/privacidade" className="hover:text-foreground">
             Política de Privacidade
           </Link>
+          <Link href="/exclusao-de-dados" className="hover:text-foreground">
+            Exclusão de dados
+          </Link>
           <Link href="/planos" className="hover:text-foreground">
             Planos
           </Link>

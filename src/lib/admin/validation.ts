@@ -135,3 +135,16 @@ export const agendaSchema = z
 export type WhatsappTech = z.input<typeof whatsappTechSchema>;
 export type Templates = z.input<typeof templatesSchema>;
 export type Agenda = z.input<typeof agendaSchema>;
+
+/** Acesso liberado pela equipe (demonstração ou cortesia), sem cobrança. */
+export const grantSchema = z.object({
+  clinicId: z.uuid("Escolha a clínica."),
+  planId: z.number("Escolha o plano.").int().positive("Escolha o plano."),
+  days: z
+    .number("Informe quantos dias.")
+    .int("Use um número inteiro de dias.")
+    .min(1, "Pelo menos 1 dia.")
+    .max(365, "No máximo 365 dias."),
+  note: z.string().trim().max(300, "Use no máximo 300 caracteres."),
+});
+export type Grant = z.infer<typeof grantSchema>;

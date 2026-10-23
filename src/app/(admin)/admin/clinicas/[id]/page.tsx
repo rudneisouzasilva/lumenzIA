@@ -126,9 +126,13 @@ async function Clinic({
                 ` · ${formatPrice(current.plans.price_cents)}/mês`}
             </Item>
             <Item label="Situação">
-              {active ? STATUS[current.status] : "Vencida"}
+              {!active
+                ? "Vencida"
+                : current.is_grant
+                  ? "Acesso liberado pela equipe"
+                  : STATUS[current.status]}
             </Item>
-            <Item label="Período pago até">
+            <Item label={current.is_grant ? "Acesso até" : "Período pago até"}>
               {current.current_period_end
                 ? formatDateTime(current.current_period_end)
                 : "—"}
@@ -141,11 +145,19 @@ async function Clinic({
               {current.plans?.message_quota ?? "—"}
             </Item>
             <Item label="Conversas (30 dias)">{convRes.count ?? 0}</Item>
-            <Item label="Mercado Pago">
-              <span className="font-mono text-xs break-all">
-                {current.mp_preapproval_id ?? "—"}
-              </span>
-            </Item>
+            {current.is_grant ? (
+              <Item label="Liberado">
+                <Link href="/admin/acessos" className="hover:underline">
+                  {current.grant_note || "Sem cobrança"}
+                </Link>
+              </Item>
+            ) : (
+              <Item label="Mercado Pago">
+                <span className="font-mono text-xs break-all">
+                  {current.mp_preapproval_id ?? "—"}
+                </span>
+              </Item>
+            )}
           </dl>
         ) : (
           <p className="text-sm text-muted-foreground">Nenhuma assinatura.</p>
