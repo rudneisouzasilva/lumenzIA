@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { toAccess } from "@/lib/painel/areas";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { isSubscriptionActive } from "./active";
@@ -15,18 +16,23 @@ export type SubscriptionRow =
     plans: { code: string; name: string; message_quota: number } | null;
   };
 
-/** A clínica da pessoa logada (a primeira, se for de mais de uma) e o papel dela. */
+/** A clínica da pessoa logada (a primeira, se for de mais de uma), o papel e as áreas liberadas. */
 export async function getMyClinic(supabase: Client, userId: string) {
   const { data, error } = await supabase
     .from("clinic_members")
-    .select("role, clinics(id, name)")
+    .select("role, permissions, clinics(id, name)")
     .eq("user_id", userId)
     .order("created_at")
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data?.clinics) return null;
-  return { id: data.clinics.id, name: data.clinics.name, role: data.role };
+  return {
+    id: data.clinics.id,
+    name: data.clinics.name,
+    role: data.role,
+    access: toAccess(data.role, data.permissions),
+  };
 }
 
 /** Assinaturas da clínica, da mais nova para a mais antiga (lidas pelo RLS). */

@@ -28,7 +28,7 @@ export async function saveEvaluationSettings(
       error: `Use um prazo entre 1 e ${MAX_EVALUATION_VALIDITY_DAYS} dias.`,
     };
   }
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("procedimentos");
   if ("error" in ctx) return { ok: false, error: ctx.error };
 
   const { error } = await ctx.supabase

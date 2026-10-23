@@ -27,7 +27,7 @@ const moveSchema = z.object({
 export async function moveContact(input: unknown): Promise<FormResult> {
   const parsed = moveSchema.safeParse(input);
   if (!parsed.success) return fail("Etapa inválida.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("funil");
   if ("error" in ctx) return fail(ctx.error);
 
   const { data, error } = await ctx.supabase
@@ -59,7 +59,7 @@ export async function saveContactDetails(input: unknown): Promise<FormResult> {
   const parsed = detailsSchema.safeParse(input);
   if (!parsed.success) return fail("Confira os campos destacados.");
   const v = parsed.data;
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("funil");
   if ("error" in ctx) return fail(ctx.error);
 
   if (v.ownerId) {
@@ -100,7 +100,7 @@ export async function saveStage(input: unknown): Promise<FormResult> {
   const parsed = stageSchema.safeParse(input);
   if (!parsed.success) return fail("Dê um nome à etapa.");
   const v = parsed.data;
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("funil");
   if ("error" in ctx) return fail(ctx.error);
 
   if (v.id) {
@@ -139,7 +139,7 @@ export async function saveStage(input: unknown): Promise<FormResult> {
 export async function reorderStages(ids: unknown): Promise<FormResult> {
   const parsed = z.array(uuid).min(1).max(MAX_STAGES).safeParse(ids);
   if (!parsed.success) return fail("Ordem inválida.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("funil");
   if ("error" in ctx) return fail(ctx.error);
 
   const results = await Promise.all(
@@ -166,7 +166,7 @@ export async function deleteStage(
   const parsedTo = uuid.safeParse(moveTo);
   if (!parsedId.success || !parsedTo.success || parsedId.data === parsedTo.data)
     return fail("Escolha para qual etapa vão os contatos.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("funil");
   if ("error" in ctx) return fail(ctx.error);
 
   const { error: moveError } = await ctx.supabase
@@ -193,7 +193,7 @@ const lostReasonSchema = z.object({
 export async function saveLostReason(input: unknown): Promise<FormResult> {
   const parsed = lostReasonSchema.safeParse(input);
   if (!parsed.success) return fail("Dê um nome ao motivo.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("funil");
   if ("error" in ctx) return fail(ctx.error);
 
   if (parsed.data.id) {
@@ -226,7 +226,7 @@ export async function saveLostReason(input: unknown): Promise<FormResult> {
 export async function deleteLostReason(id: unknown): Promise<FormResult> {
   const parsed = uuid.safeParse(id);
   if (!parsed.success) return fail("Motivo não encontrado.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("funil");
   if ("error" in ctx) return fail(ctx.error);
   const { error } = await ctx.supabase
     .from("lost_reasons")

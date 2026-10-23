@@ -27,7 +27,7 @@ export async function saveFollowUpSettings(
 ): Promise<FormResult> {
   const parsed = settingsSchema.safeParse(input);
   if (!parsed.success) return fail("Confira os campos destacados.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(["retomadas", "funil"]);
   if ("error" in ctx) return fail(ctx.error);
 
   const { error } = await ctx.supabase
@@ -63,7 +63,7 @@ export async function createFollowUp(input: unknown): Promise<FormResult> {
   const checked = checkFollowUpDate(v.date);
   if ("error" in checked) return fail(checked.error);
 
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(["retomadas", "funil"]);
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
   try {
@@ -110,7 +110,7 @@ export async function rescheduleFollowUp(
   if (!parsedId.success) return fail("Retomada não encontrada.");
   const checked = checkFollowUpDate(date);
   if ("error" in checked) return fail(checked.error);
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(["retomadas", "funil"]);
   if ("error" in ctx) return fail(ctx.error);
 
   const { data, error } = await createAdminClient()
@@ -137,7 +137,7 @@ export async function rescheduleFollowUp(
 export async function cancelFollowUp(id: unknown): Promise<FormResult> {
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) return fail("Retomada não encontrada.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext(["retomadas", "funil"]);
   if ("error" in ctx) return fail(ctx.error);
 
   const { error } = await createAdminClient()

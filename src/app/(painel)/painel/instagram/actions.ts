@@ -11,7 +11,7 @@ const fail = (error: string): FormResult => ({ ok: false, error });
 
 /** Só a dona da clínica muda a conexão (é a conta dela no Instagram). */
 async function ownerContext() {
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("instagram");
   if ("error" in ctx) return ctx;
   if (ctx.clinic.role !== "owner") {
     return {

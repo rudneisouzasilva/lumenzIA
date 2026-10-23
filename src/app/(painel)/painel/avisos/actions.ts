@@ -43,7 +43,7 @@ export async function saveNotificationSettings(
     return fail("Informe o e-mail da equipe ou desligue esse canal.");
   }
 
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("avisos");
   if ("error" in ctx) return fail(ctx.error);
 
   if (reminderByEmail) {

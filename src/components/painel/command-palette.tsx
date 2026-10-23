@@ -9,6 +9,7 @@ import { signOut } from "@/app/(auth)/actions";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+import { usePanelAccess, visibleFor } from "./access-store";
 import { SEARCH_ITEMS } from "./nav";
 
 type Command = {
@@ -57,17 +58,20 @@ function Palette({ close }: { close: () => void }) {
   const [, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
+  const access = usePanelAccess();
 
   const commands = useMemo<Command[]>(
     () => [
-      ...SEARCH_ITEMS.map((item) => ({
-        id: item.href,
-        label: item.label,
-        hint: "Ir para",
-        icon: item.icon,
-        keywords: `${item.label} ${item.keywords ?? ""}`,
-        run: () => router.push(item.href),
-      })),
+      ...SEARCH_ITEMS.filter((item) => visibleFor(access, item.href)).map(
+        (item) => ({
+          id: item.href,
+          label: item.label,
+          hint: "Ir para",
+          icon: item.icon,
+          keywords: `${item.label} ${item.keywords ?? ""}`,
+          run: () => router.push(item.href),
+        }),
+      ),
       {
         id: "tema",
         label: "Alternar tema claro/escuro",
@@ -85,7 +89,7 @@ function Palette({ close }: { close: () => void }) {
         run: () => startTransition(() => signOut()),
       },
     ],
-    [router, resolvedTheme, setTheme],
+    [router, resolvedTheme, setTheme, access],
   );
 
   const results = useMemo(() => {

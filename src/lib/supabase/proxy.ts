@@ -78,7 +78,7 @@ export async function updateSession(request: NextRequest) {
   // Painel da clínica: quem não tem clínica com assinatura ativa nem vê a moldura (sem isso, o
   // menu aparece por um instante antes de a página mandar para /assinatura ou /admin).
   if (userId && matches(pathname, ["/painel"])) {
-    const target = await panelRedirect(supabase, userId);
+    const target = await panelRedirect(supabase, userId, pathname);
     if (target) return redirectKeepingCookies(request, response, target, {});
   }
   if (loggedIn && matches(pathname, GUEST_ONLY)) {

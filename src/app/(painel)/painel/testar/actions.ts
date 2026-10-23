@@ -39,7 +39,7 @@ export async function testAssistant(input: unknown): Promise<TestReply> {
   if (!parsed.success) {
     return { ok: false, error: "Escreva uma mensagem de até 1000 caracteres." };
   }
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("testar");
   if ("error" in ctx) return { ok: false, error: ctx.error };
 
   const { message, history, sentImageIds } = parsed.data;

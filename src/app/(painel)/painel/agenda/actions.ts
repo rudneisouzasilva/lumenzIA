@@ -46,7 +46,7 @@ async function chosenCalendars(admin: Admin, clinicId: string) {
 export async function saveGoogleCalendars(input: unknown): Promise<FormResult> {
   const parsed = calendarsSchema.safeParse(input);
   if (!parsed.success) return fail("Escolha as agendas de novo.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("agenda");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
 
@@ -143,7 +143,7 @@ export async function saveGoogleCalendars(input: unknown): Promise<FormResult> {
 /** Liga ou desliga o Google Agenda como a agenda que a assistente usa. */
 export async function setGoogleAgenda(enabled: unknown): Promise<FormResult> {
   if (typeof enabled !== "boolean") return fail("Valor inválido.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("agenda");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
 
@@ -178,7 +178,7 @@ export async function disconnectGoogleAccount(
 ): Promise<FormResult> {
   const parsed = z.uuid().safeParse(id);
   if (!parsed.success) return fail("Conta não encontrada.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("agenda");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
 
@@ -216,7 +216,7 @@ export async function connectClinicaExperts(key: unknown): Promise<FormResult> {
   const parsed = z.string().trim().min(10).max(2000).safeParse(key);
   if (!parsed.success) return fail("Cole a chave de API inteira.");
   const apiKey = parsed.data.replace(/^Bearer\s+/i, "");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("agenda");
   if ("error" in ctx) return fail(ctx.error);
 
   try {
@@ -263,7 +263,7 @@ export async function connectClinicaExperts(key: unknown): Promise<FormResult> {
 
 /** Desconecta: apaga a chave, solta os profissionais e, se estava em uso, desliga a agenda. */
 export async function disconnectClinicaExperts(): Promise<FormResult> {
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("agenda");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
   const cleared = { ce_professional_uuid: null, ce_professional_name: "" };
@@ -319,7 +319,7 @@ export async function saveClinicaExpertsProfessionals(
 ): Promise<FormResult> {
   const parsed = ceProfessionalsSchema.safeParse(input);
   if (!parsed.success) return fail("Escolha os profissionais de novo.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("agenda");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
 
@@ -405,7 +405,7 @@ export async function setClinicaExpertsAgenda(
   enabled: unknown,
 ): Promise<FormResult> {
   if (typeof enabled !== "boolean") return fail("Valor inválido.");
-  const ctx = await getActionContext();
+  const ctx = await getActionContext("agenda");
   if ("error" in ctx) return fail(ctx.error);
   const admin = createAdminClient();
 

@@ -27,6 +27,8 @@ senha e endereço dos jobs) a cada visita.
   13. `20261022000021_clinica_experts_webhook.sql` (avisos em tempo real do Clínica Experts)
   14. `20261022000022_access_grants.sql` (aba **Acessos** do /admin: plano liberado por alguns
       dias, sem cobrança)
+  15. `20261023000023_team_invites.sql` (equipe convidada por link, com as telas escolhidas
+      pela dona)
 - [ ] Criar a sua conta da equipe LumenzIA, sem clínica: Supabase → **Authentication → Users →
       Add user → Create new user**, com o seu e-mail, uma senha escolhida por você e **Auto
       Confirm User** marcado. Depois, no SQL Editor (troque o e-mail):
@@ -224,6 +226,14 @@ privacidade.
       de contato já é `privacidade@lumenzia.com.br` (em `src/lib/site.ts`).
 - Exclusão de dados: a página `/exclusao-de-dados` explica como clínicas e pacientes pedem a
   exclusão (é a URL que a Meta pede no app). Os pedidos chegam em `privacidade@lumenzia.com.br`.
+
+## 6a. Equipe da clínica
+
+Na tela **Equipe** do painel (só a dona vê), a clínica convida uma pessoa pelo nome e e-mail e
+marca as telas que ela pode abrir. O link vale 7 dias, só funciona com o e-mail convidado e é
+enviado por e-mail (quando o Resend está configurado); também dá para copiar ou mandar pelo
+WhatsApp. Quem abre cria a conta (já confirmada) ou entra com a que tem. A dona muda as telas ou
+tira a pessoa quando quiser. Quem já era da equipe antes da migração 0023 continua vendo tudo.
 
 ## 6b. Demonstrações e cortesias
 

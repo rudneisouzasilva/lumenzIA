@@ -20,7 +20,7 @@ export default function AccountPage() {
       <PageHeader
         icon={UserCog}
         title="Minha conta"
-        description="Seus dados de acesso, a clínica e quem faz parte da equipe."
+        description="Seus dados de acesso e a clínica."
       />
       <Suspense fallback={<PanelSkeleton />}>
         <Account />
@@ -63,7 +63,17 @@ async function Account() {
           canEdit={clinic.role === "owner"}
         />
         <div className="mt-6 border-t pt-5">
-          <p className="mb-3 text-sm font-medium">Equipe com acesso</p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">Equipe com acesso</p>
+            {clinic.role === "owner" && (
+              <Link
+                href="/painel/equipe"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Convidar e escolher as telas
+              </Link>
+            )}
+          </div>
           <ul className="divide-y rounded-xl border">
             {(members ?? []).map((m) => (
               <li

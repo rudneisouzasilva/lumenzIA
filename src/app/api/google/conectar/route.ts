@@ -9,6 +9,7 @@ import {
   STATE_COOKIE,
   STATE_MAX_AGE,
 } from "@/lib/google/oauth";
+import { canAccess } from "@/lib/painel/areas";
 import { createClient } from "@/lib/supabase/server";
 
 /** Começa a conexão de uma conta do Google: leva para a tela de autorização do Google. */
@@ -24,7 +25,7 @@ export async function GET() {
   if (!user)
     return NextResponse.redirect(`${appUrl}/entrar?next=/painel/agenda`);
   const clinic = await getMyClinic(supabase, user.id);
-  if (!clinic) return back("erro");
+  if (!clinic || !canAccess(clinic.access, "agenda")) return back("erro");
   const creds = googleCredentials();
   if (!creds) {
     console.error(
