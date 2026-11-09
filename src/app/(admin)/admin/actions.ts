@@ -16,6 +16,7 @@ import { isSubscriptionActive } from "@/lib/billing/active";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { disconnectWhatsapp } from "@/lib/whatsapp/embedded-signup";
+import { activateOwnAppWhatsapp } from "@/lib/whatsapp/own-app";
 
 /**
  * Ações da equipe LumenzIA. Cada uma confere de novo que quem chama é admin, grava com a chave
@@ -147,6 +148,19 @@ export async function saveClinicWhatsapp(
     if (secretError) return saveError("token whatsapp", secretError.message);
     changes.push(v.removeToken ? "token removido" : "token trocado");
   }
+  if (v.appSecret || v.removeAppSecret) {
+    const { error: secretError } = await ctx.admin.rpc("set_clinic_secret", {
+      p_clinic_id: ctx.clinicId,
+      p_kind: "whatsapp_app_secret",
+      p_value: v.removeAppSecret ? "" : v.appSecret,
+    });
+    if (secretError) return saveError("chave do app", secretError.message);
+    changes.push(
+      v.removeAppSecret
+        ? "chave secreta do app removida"
+        : "chave secreta do app trocada",
+    );
+  }
 
   if (changes.length) {
     await audit(
@@ -159,6 +173,28 @@ export async function saveClinicWhatsapp(
   }
   refresh();
   return { ok: true };
+}
+
+/**
+ * Clínica ligada pelo app dela mesma: confere o número na Meta, inscreve o app nos avisos da
+ * conta e traz/envia os templates. Devolve observações para mostrar na tela.
+ */
+export async function activateClinicWhatsapp(
+  clinicId: unknown,
+): Promise<{ ok: true; notes: string[] } | { ok: false; error: string }> {
+  const ctx = await start(clinicId);
+  if ("error" in ctx) return { ok: false, error: ctx.error };
+  try {
+    const result = await activateOwnAppWhatsapp(ctx.clinicId, ctx.userId);
+    refresh();
+    return result;
+  } catch (e) {
+    console.error("[admin] ativar whatsapp:", (e as Error).message);
+    return {
+      ok: false,
+      error: "Não foi possível conferir na Meta agora. Tente de novo.",
+    };
+  }
 }
 
 export async function saveClinicTemplates(

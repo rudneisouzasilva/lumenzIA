@@ -346,7 +346,11 @@ async function clearWhatsapp(clinicId: string) {
     })
     .eq("id", clinicId)
     .throwOnError();
-  for (const kind of ["whatsapp_token", "whatsapp_pin"]) {
+  for (const kind of [
+    "whatsapp_token",
+    "whatsapp_pin",
+    "whatsapp_app_secret",
+  ]) {
     await admin
       .rpc("set_clinic_secret", {
         p_clinic_id: clinicId,

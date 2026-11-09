@@ -392,6 +392,7 @@ export type Database = {
           clinic_id: string;
           updated_at: string;
           whatsapp_pin_secret_id: string | null;
+          whatsapp_app_secret_secret_id: string | null;
           whatsapp_token_secret_id: string | null;
         };
         ComputedFields: never;
@@ -400,6 +401,7 @@ export type Database = {
           clinic_id: string;
           updated_at?: string;
           whatsapp_pin_secret_id?: string | null;
+          whatsapp_app_secret_secret_id?: string | null;
           whatsapp_token_secret_id?: string | null;
         };
         Update: {
@@ -407,6 +409,7 @@ export type Database = {
           clinic_id?: string;
           updated_at?: string;
           whatsapp_pin_secret_id?: string | null;
+          whatsapp_app_secret_secret_id?: string | null;
           whatsapp_token_secret_id?: string | null;
         };
         Relationships: [

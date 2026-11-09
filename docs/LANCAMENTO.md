@@ -142,6 +142,28 @@ Para cada clínica, depois que ela conectar:
 - [ ] A clínica escolhe por onde a equipe é avisada (WhatsApp e/ou e-mail) e cadastra o contato em
       **Avisos e lembretes** no painel. O campo da aba **WhatsApp** em /admin continua valendo.
 
+## 5a. WhatsApp pelo app da própria clínica (sem Tech Provider)
+
+Enquanto a LumenzIA não é Tech Provider, uma clínica que já tem app e número na Cloud API, no
+Gerenciador de Negócios dela, liga o WhatsApp pelo app dela mesma. Duas plataformas não podem
+atender o mesmo número ao mesmo tempo: desligue a anterior na hora da troca.
+
+1. Aplique a migração `20261109000024_whatsapp_own_app.sql`.
+2. No Gerenciador de Negócios da clínica (business.facebook.com), crie um **usuário do sistema**
+   (admin) e atribua a ele o app e a conta do WhatsApp. Gere um token **sem expiração** com
+   `whatsapp_business_messaging` e `whatsapp_business_management`.
+3. No app da clínica (developers.facebook.com), em WhatsApp → Configuração → Webhook:
+   - URL de callback: `https://lumenzia.com.br/api/webhooks/whatsapp`
+   - Token de verificação: o mesmo valor de `WHATSAPP_VERIFY_TOKEN` da Vercel
+   - Campos: `messages`, `message_template_status_update`, `account_update` (e, se o número usa
+     o app no celular, `history`, `smb_app_state_sync`, `smb_message_echoes`)
+4. Em `/admin` → clínica → aba WhatsApp: preencha Phone Number ID, WABA ID, número exibido,
+   token e a **Chave Secreta do app** da clínica (Configurações do app → Básico). Salve.
+5. Clique em **Conferir e ativar na Meta**: confere o número, inscreve o app nos avisos da conta,
+   traz os templates que a clínica já tem (aparecem em "Mensagens prontas") e envia o pacote da
+   LumenzIA para aprovação.
+6. Ligue a assistente na visão geral da clínica e mande uma mensagem de teste.
+
 ## 5b. Google Agenda (cada clínica conecta a própria conta)
 
 1. Em [console.cloud.google.com](https://console.cloud.google.com), criar um projeto da LumenzIA
