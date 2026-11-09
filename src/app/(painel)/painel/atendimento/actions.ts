@@ -105,7 +105,7 @@ export async function sendStaffReply(
       .select("created_at")
       .eq("conversation_id", conversationId)
       .eq("role", "user")
-      .order("id", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
     imageId

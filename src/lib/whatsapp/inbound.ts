@@ -593,6 +593,7 @@ export async function loadHistory(
     .from("messages")
     .select("role, content")
     .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(HISTORY_SIZE)
     .throwOnError();

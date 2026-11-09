@@ -259,6 +259,8 @@ export function Inbox({
         "id, role, origin, content, created_at, profiles(full_name), images(storage_path, description)",
       )
       .eq("conversation_id", selectedId)
+      // Pela hora da mensagem: uma reentrega atrasada da Meta entra no lugar certo.
+      .order("created_at")
       .order("id")
       .limit(500)
       .then(({ data, error }) => {

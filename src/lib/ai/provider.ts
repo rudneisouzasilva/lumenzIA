@@ -393,6 +393,15 @@ function toCompatMessages(system: string, messages: LlmMessage[]) {
 const retryable = (status: number) =>
   status === 408 || status === 429 || status >= 500;
 
+/** Quanto esperar num 429: o cabeçalho retry-after ou o "try again in 13.2s" do Groq. */
+const MAX_RATE_LIMIT_WAIT_MS = 20_000;
+function rateLimitWaitMs(response: Response, body: string) {
+  const header = Number(response.headers.get("retry-after"));
+  const fromBody = /try again in ([\d.]+)s/i.exec(body)?.[1];
+  const seconds = header > 0 ? header : Number(fromBody);
+  return seconds > 0 ? Math.ceil(seconds * 1000) + 500 : null;
+}
+
 async function compatRequest(
   use: ModelUse,
   body: Record<string, unknown>,
@@ -415,8 +424,12 @@ async function compatRequest(
     [cfg.preset.maxTokensField ?? "max_tokens"]: Math.max(maxTokens, 2048),
   });
   let lastError = "";
+  let waitMs: number | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, 800 * 2 ** attempt));
+    if (attempt) {
+      await new Promise((r) => setTimeout(r, waitMs ?? 800 * 2 ** attempt));
+    }
+    waitMs = null;
     try {
       const response = await fetch(`${cfg.baseUrl}/chat/completions`, {
         method: "POST",
@@ -434,8 +447,14 @@ async function compatRequest(
         );
         return data;
       }
-      lastError = `${response.status}: ${(await response.text().catch(() => "")).slice(0, 300)}`;
+      const text = await response.text().catch(() => "");
+      lastError = `${response.status}: ${text.slice(0, 300)}`;
       if (!retryable(response.status)) break;
+      // Limite por minuto do provedor: espera o tempo que ele pede, se couber no atendimento.
+      if (response.status === 429) {
+        waitMs = rateLimitWaitMs(response, text);
+        if (waitMs && waitMs > MAX_RATE_LIMIT_WAIT_MS) break;
+      }
     } catch (e) {
       lastError = `rede: ${(e as Error).message}`;
     }
