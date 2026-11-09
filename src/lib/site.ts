@@ -9,7 +9,12 @@ export const site = {
    * Dados da empresa na política de privacidade. Vazio aparece [ENTRE COLCHETES] no site e
    * deixa pendente o item da política na tela Lançamento do /admin.
    */
-  company: { legalName: "", cnpj: "", address: "" },
+  company: {
+    legalName: "70.045.248 RUDNEI DE SOUZA SILVA",
+    cnpj: "70.045.248/0001-54",
+    address:
+      "Rua Jefferson Damião do Amaral, 169, Casa 1, Vila Nova, Cubatão/SP, CEP 11525-050",
+  },
 };
 
 /** A política de privacidade já tem razão social, CNPJ e endereço? */
