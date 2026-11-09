@@ -5,7 +5,17 @@ export const site = {
   whatsappLabel: "(13) 99737-9065",
   /** Recebe pedidos de privacidade e de exclusão de dados (encaminhado para o Gmail pelo ImprovMX). */
   privacyEmail: "privacidade@lumenzia.com.br",
+  /**
+   * Dados da empresa na política de privacidade. Vazio aparece [ENTRE COLCHETES] no site e
+   * deixa pendente o item da política na tela Lançamento do /admin.
+   */
+  company: { legalName: "", cnpj: "", address: "" },
 };
+
+/** A política de privacidade já tem razão social, CNPJ e endereço? */
+export const companyInfoComplete = Object.values(site.company).every((v) =>
+  v.trim(),
+);
 
 export function whatsappLink(
   message = "Olá! Quero saber mais sobre a LumenzIA.",
