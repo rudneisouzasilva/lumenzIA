@@ -7,6 +7,7 @@ import { PageHeader, PanelCard, PanelSkeleton } from "@/components/painel/page";
 import { getAdminContext } from "@/lib/admin/context";
 import { aiConfigured, aiModel, aiProviderLabel } from "@/lib/ai/provider";
 import { formatDateTime } from "@/lib/format";
+import { companyInfoComplete } from "@/lib/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
@@ -174,6 +175,53 @@ async function Checks() {
         },
       ];
 
+  // Situação conferida à mão com a equipe (atualize aqui quando algo mudar). A política de
+  // privacidade é a única conferida pelo código: depende de site.company estar preenchido.
+  const manual: Check[] = [
+    {
+      label: "SMTP próprio no Supabase",
+      state: "ok",
+      hint: "Resend configurado em Authentication → Emails → SMTP Settings (22/10/2026).",
+    },
+    {
+      label: "Modelos de e-mail do Supabase em português",
+      state: "ok",
+      hint: "Confirmar cadastro, redefinir senha e trocar e-mail traduzidos, com links token_hash (22/10/2026).",
+    },
+    {
+      label: "Site URL e Redirect URLs do Supabase",
+      state: "ok",
+      hint: "Apontando para https://lumenzia.com.br (22/10/2026).",
+    },
+    {
+      label: "Webhook do Mercado Pago no domínio próprio",
+      state: "warn",
+      hint: "Apontando para lumenzia.com.br/api/webhooks/mercadopago (22/10/2026). Ainda falta uma cobrança real aprovada para confirmar que a assinatura ativa sozinha.",
+    },
+    {
+      label: "App da Meta publicado, empresa verificada e permissões aprovadas",
+      state: "todo",
+      hint: "App criado em 23/10/2026 e em modo de desenvolvimento (webhook do WhatsApp em configuração). Verificação da empresa, App Review e publicação esperam o CNPJ.",
+    },
+    {
+      label: "Domínio próprio no Cadastro Incorporado",
+      state: "todo",
+      hint: "Junto da configuração do Cadastro Incorporado: “Allowed domains for the JavaScript SDK” com lumenzia.com.br.",
+    },
+    {
+      label: "Política de privacidade completa",
+      state: companyInfoComplete ? "ok" : "warn",
+      hint: companyInfoComplete
+        ? "Razão social, CNPJ e endereço preenchidos. Falta só a revisão jurídica, se ainda não foi feita."
+        : "E-mail de privacidade e página de exclusão de dados prontos. Faltam razão social, CNPJ e endereço (site.company em src/lib/site.ts), que dependem do CNPJ.",
+    },
+    {
+      label: "Supabase no plano pago e backups",
+      state: "todo",
+      hint: "Decidido ficar no gratuito até a primeira clínica pagante. O gratuito pausa após 7 dias sem uso e não tem backup diário.",
+    },
+  ];
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <PanelCard title="Site, e-mail e cobrança">
@@ -212,26 +260,13 @@ async function Checks() {
       </PanelCard>
       <PanelCard
         title="Conferir à mão"
-        description="Itens que o site não consegue verificar sozinho. O passo a passo completo está em docs/LANCAMENTO.md."
+        description="Itens que o site não consegue verificar sozinho, com a situação da última conferência. O passo a passo completo está em docs/LANCAMENTO.md."
         className="lg:col-span-2"
       >
-        <ul className="grid gap-2 text-sm sm:grid-cols-2">
-          {[
-            "SMTP próprio no Supabase (Authentication → Emails → SMTP Settings)",
-            "Modelos de e-mail do Supabase traduzidos para português",
-            "Site URL e Redirect URLs do Supabase com o domínio próprio",
-            "Webhook do Mercado Pago apontando para o domínio próprio",
-            "App da Meta publicado, empresa verificada e permissões aprovadas",
-            "Domínio próprio na lista de domínios do Cadastro Incorporado",
-            "Política de privacidade sem os textos [ENTRE COLCHETES]",
-            "Supabase no plano pago (o gratuito pausa sem uso) e backups",
-          ].map((item) => (
-            <li key={item} className="flex gap-2">
-              <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              {item}
-            </li>
-          ))}
-        </ul>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CheckList checks={manual.slice(0, Math.ceil(manual.length / 2))} />
+          <CheckList checks={manual.slice(Math.ceil(manual.length / 2))} />
+        </div>
       </PanelCard>
     </div>
   );

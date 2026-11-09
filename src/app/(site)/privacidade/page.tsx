@@ -10,7 +10,8 @@ export const metadata: Metadata = {
     "Como a LumenzIA trata dados pessoais, em conformidade com a LGPD.",
 };
 
-// Os trechos [ENTRE COLCHETES] (razão social, CNPJ e endereço) precisam ser preenchidos com os dados da empresa e o texto deve ser
+// Razão social, CNPJ e endereço vêm de site.company (src/lib/site.ts); enquanto vazios, aparecem
+// [ENTRE COLCHETES]. Preencha com os dados da empresa e o texto deve ser
 // revisado por um advogado antes de ir ao ar.
 export default function PrivacyPage() {
   return (
@@ -29,8 +30,10 @@ export default function PrivacyPage() {
 
       <h2>1. Quem somos</h2>
       <p>
-        [RAZÃO SOCIAL], CNPJ [00.000.000/0000-00], com sede em [ENDEREÇO
-        COMPLETO]. Contato para assuntos de privacidade:{" "}
+        {site.company.legalName || "[RAZÃO SOCIAL]"}, CNPJ{" "}
+        {site.company.cnpj || "[00.000.000/0000-00]"}, com sede em{" "}
+        {site.company.address || "[ENDEREÇO COMPLETO]"}. Contato para assuntos
+        de privacidade:{" "}
         <a
           href={`mailto:${site.privacyEmail}`}
           className="text-primary underline underline-offset-4"
