@@ -80,6 +80,20 @@ export async function findOrCreateConversation(
 }
 
 /** Hora em que o celular enviou (a Meta reentrega mensagens atrasadas). */
+/**
+ * Mensagem que chega muito depois de enviada: a Meta reentrega por dias um aviso que o webhook
+ * recusou (fora do ar, assinatura errada...). Ela fica no painel, mas a IA não responde, para não
+ * puxar assunto velho ou recomeçar a conversa do zero.
+ */
+export const STALE_DELIVERY_MS = 10 * 60_000;
+
+export function isStaleDelivery(
+  sentAtMs: number | undefined,
+  now = Date.now(),
+) {
+  return Number(sentAtMs) > 0 && now - Number(sentAtMs) > STALE_DELIVERY_MS;
+}
+
 export function whatsappTime(timestamp: string | undefined) {
   return Number(timestamp) > 0
     ? new Date(Number(timestamp) * 1000).toISOString()

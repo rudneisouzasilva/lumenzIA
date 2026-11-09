@@ -8,7 +8,10 @@ import { publicImageUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Sender } from "@/lib/whatsapp/client";
-import { findOrCreateConversation } from "@/lib/whatsapp/conversations";
+import {
+  findOrCreateConversation,
+  isStaleDelivery,
+} from "@/lib/whatsapp/conversations";
 import {
   countAiMessage,
   escalateToStaff,
@@ -283,6 +286,8 @@ async function handleMessage(
   if (!gate.ok || !gate.sender || !gate.subscriptionId) return;
   // Alguém da equipe assumiu a conversa: a IA fica quieta até devolverem para ela.
   if (conversation.attendance_state === "equipe") return;
+  // Reentrega atrasada da Meta: fica no painel, sem resposta da IA.
+  if (isStaleDelivery(item.timestamp)) return;
   // Marcação num story: a equipe vê no painel, a IA não precisa agradecer sozinha.
   if (!isText) {
     if (msg?.attachments?.some((a) => a.type === "story_mention")) return;

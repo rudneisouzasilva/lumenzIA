@@ -31,6 +31,7 @@ import {
   findOrCreateConversation,
   whatsappTime,
   type InboundClinic,
+  isStaleDelivery,
 } from "./conversations";
 import { handlePartnerRemoved } from "./embedded-signup";
 import { messageText } from "./message-text";
@@ -402,6 +403,8 @@ async function processMessage(
   if (!gate.ok) return;
   // Alguém da equipe assumiu a conversa: a IA fica quieta até devolverem para ela.
   if (conversation.attendance_state === "equipe") return;
+  // Reentrega atrasada da Meta: fica no painel, sem resposta da IA.
+  if (isStaleDelivery(Number(msg.timestamp) * 1000)) return;
 
   const { sender, subscriptionId } = gate;
   if (!isText) {
