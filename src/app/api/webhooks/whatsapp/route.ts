@@ -1,11 +1,11 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 
-import { isValidSignature } from "@/lib/whatsapp/client";
 import {
   handleWhatsappEvent,
   type WhatsappEvent,
 } from "@/lib/whatsapp/inbound";
 import { applyTemplateStatus } from "@/lib/whatsapp/templates";
+import { isAuthenticWhatsappEvent } from "@/lib/whatsapp/webhook-auth";
 
 // A resposta à Meta sai na hora; a IA roda depois, dentro deste limite.
 export const maxDuration = 60;
@@ -26,26 +26,18 @@ export function GET(request: NextRequest) {
 
 /**
  * Mensagens recebidas e status de entrega. Responde 200 imediatamente (a Meta reenvia o que
- * demora) e processa depois com after(). Em produção a assinatura da Meta é obrigatória.
+ * demora) e processa depois com after(). Em produção a assinatura da Meta é obrigatória: do app da
+ * LumenzIA ou, para clínica ligada pelo próprio app, do app dela.
  */
 export async function POST(request: NextRequest) {
   const raw = await request.text();
-  const appSecret = process.env.META_APP_SECRET;
-  if (appSecret) {
-    if (
-      !isValidSignature(
-        raw,
-        request.headers.get("x-hub-signature-256"),
-        appSecret,
-      )
-    ) {
-      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-    }
-  } else if (process.env.VERCEL_ENV === "production") {
-    console.error(
-      "[whatsapp] META_APP_SECRET não configurado: aviso recusado.",
-    );
-    return NextResponse.json({ error: "not configured" }, { status: 401 });
+  if (
+    !(await isAuthenticWhatsappEvent(
+      raw,
+      request.headers.get("x-hub-signature-256"),
+    ))
+  ) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
   let body: WhatsappEvent;

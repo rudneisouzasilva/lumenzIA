@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 
 import {
+  activateClinicWhatsapp,
   adminDisconnectWhatsapp,
   saveClinicAgenda,
   saveClinicTemplates,
@@ -130,10 +131,12 @@ export function WhatsappTechForm({
   clinicId,
   initial,
   tokenStored,
+  appSecretStored,
 }: {
   clinicId: string;
   initial: WhatsappTech;
   tokenStored: boolean;
+  appSecretStored: boolean;
 }) {
   const form = useForm<WhatsappTech>({
     resolver: zodResolver(whatsappTechSchema),
@@ -143,6 +146,10 @@ export function WhatsappTechForm({
     saveClinicWhatsapp(clinicId, v),
   );
   const removeToken = useWatch({ control: form.control, name: "removeToken" });
+  const removeAppSecret = useWatch({
+    control: form.control,
+    name: "removeAppSecret",
+  });
   const errors = form.formState.errors;
 
   return (
@@ -150,15 +157,22 @@ export function WhatsappTechForm({
       noValidate
       onSubmit={form.handleSubmit((values) =>
         save(values, () =>
-          form.reset({ ...values, token: "", removeToken: false }),
+          form.reset({
+            ...values,
+            token: "",
+            removeToken: false,
+            appSecret: "",
+            removeAppSecret: false,
+          }),
         ),
       )}
       className="grid gap-5"
     >
       <p className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
         O normal é a própria clínica conectar pelo botão “Conectar WhatsApp”.
-        Use estes campos só para corrigir uma conexão ou ligar um número
-        manualmente. Trocar o Phone Number ID pausa a assistente.
+        Use estes campos para corrigir uma conexão ou ligar um número que usa o
+        app da própria clínica na Meta: salve, depois clique em “Conferir e
+        ativar na Meta”. Trocar o Phone Number ID pausa a assistente.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
@@ -203,12 +217,86 @@ export function WhatsappTechForm({
           Apagar o token guardado
         </label>
       )}
-      <SaveButton
-        pending={pending}
-        saved={saved}
-        dirty={form.formState.isDirty}
+      <Field
+        label="Chave Secreta do app da clínica (opcional)"
+        type="password"
+        autoComplete="off"
+        disabled={removeAppSecret}
+        placeholder={appSecretStored ? "••••••••" : ""}
+        hint={
+          <>
+            Só quando o número usa o app da própria clínica na Meta
+            (Configurações do app → Básico → Chave Secreta do Aplicativo). Ela
+            confere os avisos que esse app manda para o nosso webhook.{" "}
+            <SecretHint stored={appSecretStored} />
+          </>
+        }
+        error={errors.appSecret?.message}
+        {...form.register("appSecret")}
       />
+      {appSecretStored && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" {...form.register("removeAppSecret")} />
+          Apagar a chave guardada
+        </label>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <SaveButton
+          pending={pending}
+          saved={saved}
+          dirty={form.formState.isDirty}
+        />
+        <ActivateButton
+          clinicId={clinicId}
+          disabled={!tokenStored || form.formState.isDirty}
+        />
+      </div>
     </form>
+  );
+}
+
+/** Confere o número na Meta, inscreve o app nos avisos da conta e cuida dos templates. */
+function ActivateButton({
+  clinicId,
+  disabled,
+}: {
+  clinicId: string;
+  disabled: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [notes, setNotes] = useState<string[]>([]);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled || pending}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await activateClinicWhatsapp(clinicId);
+            if (!result.ok) {
+              setNotes([]);
+              toast.error(result.error);
+              return;
+            }
+            setNotes(result.notes);
+            toast.success(
+              "Número conferido e app inscrito na conta. Templates sincronizados.",
+            );
+          })
+        }
+      >
+        {pending && <Loader2 className="animate-spin" />}
+        Conferir e ativar na Meta
+      </Button>
+      {notes.length > 0 && (
+        <ul className="w-full list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-400">
+          {notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

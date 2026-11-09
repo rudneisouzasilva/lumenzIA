@@ -196,6 +196,9 @@ async function Clinic({
           <li>
             PIN de duas etapas: {secrets.whatsapp_pin ? "guardado" : "não"}
           </li>
+          {secrets.whatsapp_app_secret && (
+            <li>Conectado pelo app da própria clínica</li>
+          )}
           <li>
             Agenda:{" "}
             {integration?.enabled
@@ -263,6 +266,7 @@ async function Clinic({
             <WhatsappTechForm
               clinicId={clinic.id}
               tokenStored={Boolean(secrets.whatsapp_token)}
+              appSecretStored={Boolean(secrets.whatsapp_app_secret)}
               initial={{
                 phoneNumberId: clinic.whatsapp_phone_number_id ?? "",
                 wabaId: clinic.whatsapp_waba_id ?? "",
@@ -270,6 +274,8 @@ async function Clinic({
                 staffPhone: clinic.staff_phone_number ?? "",
                 token: "",
                 removeToken: false,
+                appSecret: "",
+                removeAppSecret: false,
               }}
             />
           </PanelCard>

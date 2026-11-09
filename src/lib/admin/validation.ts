@@ -30,6 +30,9 @@ export const whatsappTechSchema = z.object({
   staffPhone: phone,
   token: secret(2000),
   removeToken: z.boolean(),
+  /** Chave Secreta do app da própria clínica (conexão manual), para conferir o webhook. */
+  appSecret: secret(200),
+  removeAppSecret: z.boolean(),
 });
 
 const templateName = z
