@@ -66,6 +66,7 @@ async function classify(
       .from("messages")
       .select("role, content")
       .eq("conversation_id", conversation.id)
+      .order("created_at")
       .order("id")
       .throwOnError(),
     admin
