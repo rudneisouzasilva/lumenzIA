@@ -190,6 +190,7 @@ async function Settings({
         google={{
           ready: Boolean(googleCredentials()),
           connected: accounts.length > 0,
+          broken: accounts.some((a) => a.status !== "ativo"),
           inUse: usingGoogle,
         }}
         clinicaExperts={{

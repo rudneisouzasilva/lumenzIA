@@ -1,5 +1,6 @@
 import "server-only";
 
+import { notifyStaff } from "@/lib/notifications/staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -125,14 +126,28 @@ async function accessToken(accountId: string) {
   };
   if (!res.ok || !data.access_token) {
     if (data.error === "invalid_grant") {
-      await admin
+      const { data: dropped } = await admin
         .from("google_accounts")
         .update({
           status: "desconectado",
           last_error:
             "A autorização foi retirada no Google. Conecte a conta de novo.",
         })
-        .eq("id", accountId);
+        .eq("id", accountId)
+        .eq("status", "ativo")
+        .select("clinic_id, email");
+      // Avisa a equipe uma vez, quando a conta cai, para não ficar sem agenda sem saber.
+      for (const account of dropped ?? []) {
+        await notifyStaff(admin, account.clinic_id, null, {
+          title: "Google Agenda desconectado",
+          params: [
+            `A conta ${account.email} do Google Agenda foi desconectada.`,
+            "A assistente não consegue ver nem marcar horários até conectar de novo em Painel > Agenda.",
+          ],
+        }).catch((e) =>
+          console.error("[google] aviso de conta caída:", (e as Error).message),
+        );
+      }
     }
     throw new GoogleError(`renovar token: ${data.error ?? res.status}`, 401);
   }
