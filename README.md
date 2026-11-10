@@ -1,7 +1,7 @@
 # LumenzIA
 
 Assistente de IA no WhatsApp para clínicas de estética: site, assinatura, painel da clínica, atendimento
-humano e o motor da IA (Google Gemini). É a reconstrução do Lumia com uma stack mais moderna.
+humano e o motor da IA (Gemini, Groq ou outro provedor, escolhido em `AI_PROVIDER`). É a reconstrução do Lumia com uma stack mais moderna.
 
 ## Stack
 
@@ -123,14 +123,15 @@ assistente só pode ser ligada depois que o número do WhatsApp for conectado. C
 abre a busca rápida. Uma bolinha de chat no canto de todas as telas abre a caixa de entrada sem
 sair da página, inclusive para começar uma conversa nova com uma mensagem pronta.
 
-## Motor da IA (WhatsApp + Gemini)
+## Motor da IA (WhatsApp + Instagram)
 
 - `src/lib/ai/prompt.ts` monta as instruções da assistente com o que a clínica salvou no painel
   (o feriado nacional do dia vem de `holidays.ts`, calculado no servidor). As fotos aparecem para
   o modelo como `FOTO 1`, `FOTO 2`...; a resposta marca `[[FOTO:N]]` para enviar uma e
   `[[ESCALAR]]` para chamar a equipe.
-- `src/lib/ai/engine.ts` chama o Gemini (`@google/genai`, modelo em `GEMINI_MODEL`) e resolve as
-  ferramentas de agenda em até 4 rodadas.
+- `src/lib/ai/engine.ts` chama a IA por `src/lib/ai/provider.ts` (Gemini, ou Groq e outros no
+  formato da OpenAI, conforme `AI_PROVIDER`) e resolve as ferramentas de agenda em até 4 rodadas,
+  com 40 segundos no total: passado isso, o paciente recebe o aviso de que a equipe vai retornar.
 - `src/lib/ai/agenda.ts` fala com a agenda da clínica: modo `google` (as contas do Google que a
   clínica conectou em `/painel/agenda`, uma agenda por profissional, em `google-agenda.ts`),
   `webhook` (um POST para Zapier, Make ou n8n) ou `custom` (molde por ação, com conta de serviço do

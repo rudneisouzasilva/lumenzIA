@@ -498,7 +498,6 @@ export type Database = {
           staff_alert_email: string | null;
           staff_alert_template_name: string | null;
           staff_last_inbound: Json;
-          staff_phone_number: string | null;
           staff_phone_numbers: string[];
           template_language: string;
           tone: string;
@@ -541,7 +540,6 @@ export type Database = {
           staff_alert_email?: string | null;
           staff_alert_template_name?: string | null;
           staff_last_inbound?: Json;
-          staff_phone_number?: string | null;
           staff_phone_numbers?: string[];
           template_language?: string;
           tone?: string;
@@ -583,7 +581,6 @@ export type Database = {
           staff_alert_email?: string | null;
           staff_alert_template_name?: string | null;
           staff_last_inbound?: Json;
-          staff_phone_number?: string | null;
           staff_phone_numbers?: string[];
           template_language?: string;
           tone?: string;

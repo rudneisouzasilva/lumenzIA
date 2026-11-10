@@ -125,6 +125,11 @@ export type ChatRequest = {
   tools: ToolDeclaration[];
   temperature: number;
   maxTokens: number;
+  /**
+   * Hora-limite (Date.now()) para esta resposta. Passada ela, desiste em vez de tentar de novo,
+   * para quem chamou ainda ter tempo de avisar o paciente e a equipe.
+   */
+  deadline?: number;
 };
 
 export type ChatResult = {
@@ -146,6 +151,16 @@ export type JsonRequest = {
   /** Mensagem de erro para quem usa. */
   failure: string;
 };
+
+/** Folga mínima para valer a pena chamar a IA antes da hora-limite. */
+const MIN_CALL_MS = 3_000;
+
+/** Quanto falta até a hora-limite (sem hora-limite, `fallback`). */
+function remainingMs(deadline: number | undefined, fallback: number) {
+  return deadline === undefined
+    ? fallback
+    : Math.min(fallback, deadline - Date.now());
+}
 
 /** Uma rodada de conversa: texto final ou chamadas de ferramenta. */
 export function chat(request: ChatRequest): Promise<ChatResult> {
@@ -239,6 +254,10 @@ function geminiFailure(e: unknown, label: string, message: string) {
 
 async function geminiChat(request: ChatRequest): Promise<ChatResult> {
   const model = aiModel("chat");
+  const budget = remainingMs(request.deadline, 60_000);
+  if (budget < MIN_CALL_MS) {
+    throw new AiError("Sem tempo para gerar a resposta agora.");
+  }
   try {
     const response = await gemini().models.generateContent({
       model,
@@ -251,6 +270,10 @@ async function geminiChat(request: ChatRequest): Promise<ChatResult> {
         tools: request.tools.length
           ? [{ functionDeclarations: request.tools }]
           : undefined,
+        // Corta tudo (inclusive as novas tentativas do SDK) na hora-limite.
+        ...(request.deadline !== undefined
+          ? { abortSignal: AbortSignal.timeout(budget) }
+          : {}),
       },
     });
     const usage = response.usageMetadata;
@@ -409,6 +432,7 @@ async function compatRequest(
   timeoutMs: number,
   label: string,
   failure: string,
+  deadline?: number,
 ): Promise<CompatResponse> {
   const cfg = compatConfig(use);
   if (!cfg) {
@@ -427,9 +451,17 @@ async function compatRequest(
   let waitMs: number | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt) {
-      await new Promise((r) => setTimeout(r, waitMs ?? 800 * 2 ** attempt));
+      const wait = waitMs ?? 800 * 2 ** attempt;
+      // Só espera e tenta de novo se ainda sobrar tempo para a nova tentativa.
+      if (remainingMs(deadline, Infinity) - wait < MIN_CALL_MS) break;
+      await new Promise((r) => setTimeout(r, wait));
     }
     waitMs = null;
+    const budget = remainingMs(deadline, timeoutMs);
+    if (budget < MIN_CALL_MS) {
+      lastError ||= "sem tempo para tentar";
+      break;
+    }
     try {
       const response = await fetch(`${cfg.baseUrl}/chat/completions`, {
         method: "POST",
@@ -438,7 +470,7 @@ async function compatRequest(
           "Content-Type": "application/json",
         },
         body: payload,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(budget),
       });
       if (response.ok) {
         const data = (await response.json()) as CompatResponse;
@@ -500,6 +532,7 @@ async function compatChat(request: ChatRequest): Promise<ChatResult> {
     30_000,
     "atendimento",
     "Não foi possível gerar a resposta agora. Tente novamente em instantes.",
+    request.deadline,
   );
   const message = data.choices?.[0]?.message;
   const calls = (message?.tool_calls ?? []).map((c) => ({

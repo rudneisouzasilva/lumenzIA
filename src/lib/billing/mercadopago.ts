@@ -13,6 +13,8 @@ async function mpFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
     cache: "no-store",
+    // Sem resposta em 15 segundos, desiste: o webhook responde erro e o Mercado Pago reenvia.
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     throw new Error(

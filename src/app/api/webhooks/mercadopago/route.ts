@@ -38,7 +38,14 @@ export async function POST(request: NextRequest) {
     body.data?.id ?? query.get("data.id") ?? query.get("id") ?? "",
   );
 
-  const secret = process.env.MP_WEBHOOK_SECRET;
+  // Em produção a assinatura é obrigatória: sem a chave, ninguém de fora pode mandar avisos.
+  const secret = process.env.MP_WEBHOOK_SECRET?.trim();
+  if (!secret && process.env.VERCEL_ENV === "production") {
+    console.error(
+      "[mercadopago] MP_WEBHOOK_SECRET não configurado: aviso recusado.",
+    );
+    return NextResponse.json({ error: "not configured" }, { status: 401 });
+  }
   if (
     secret &&
     !isValidWebhookSignature({
