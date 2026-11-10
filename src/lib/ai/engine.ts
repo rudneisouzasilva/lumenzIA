@@ -40,6 +40,12 @@ import {
 export { AiError };
 
 const MAX_TOOL_ROUNDS = 4;
+/**
+ * Tempo total para uma resposta (todas as rodadas e novas tentativas). Os webhooks rodam no
+ * máximo 60 segundos: o que sobra garante que, se a IA travar, o paciente recebe o aviso de que a
+ * equipe vai retornar e a conversa cai na fila, em vez de a função ser cortada no meio.
+ */
+const REPLY_BUDGET_MS = 40_000;
 
 export type ChatTurn = { role: "user" | "model"; text: string };
 
@@ -330,6 +336,7 @@ export async function generateReply({
   sentImageIds?: string[];
   previousSummaries?: string[];
 }) {
+  const deadline = Date.now() + REPLY_BUDGET_MS;
   const fields = parseBookingFields(context.clinic.booking_fields);
   const [known, upcomingAppointments] =
     agenda?.kind === "live"
@@ -371,6 +378,7 @@ export async function generateReply({
       tools,
       temperature: 0.6,
       maxTokens: 1024,
+      deadline,
     });
     if (!response.calls.length || !tools.length) {
       raw = response.text;
