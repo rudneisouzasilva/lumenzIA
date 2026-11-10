@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { phoneVariants } from "@/lib/format";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { sendText, type Sender } from "@/lib/whatsapp/client";
+import { placeholderCount } from "@/lib/whatsapp/template-pack";
 import { sendTemplateMessage, templateFor } from "@/lib/whatsapp/templates";
 
 import { parseStaffChannels } from "./channels";
@@ -132,7 +133,10 @@ async function sendStaffWhatsapp(
     console.warn("[avisos] template de aviso à equipe não aprovado.");
     return;
   }
-  await sendTemplateMessage(sender, phone, template, alert.params);
+  // O modelo atual leva só o assunto (sem dados do paciente); as versões antigas, as duas variáveis.
+  const params =
+    placeholderCount(template.body) === 1 ? [alert.title] : alert.params;
+  await sendTemplateMessage(sender, phone, template, params);
 }
 
 /**
