@@ -194,6 +194,15 @@ export async function ensureTemplatePack(clinicId: string) {
   const errors: string[] = [];
   for (const item of TEMPLATE_PACK) {
     let row = existing.find((t) => t.purpose === item.purpose);
+    // Versão antiga do modelo: vira "da clínica" (continua valendo até a nova ser aprovada).
+    if (row && item.previousNames?.includes(row.name)) {
+      await admin
+        .from("message_templates")
+        .update({ purpose: "outro" })
+        .eq("id", row.id)
+        .throwOnError();
+      row = undefined;
+    }
     if (!row) {
       const { data, error } = await admin
         .from("message_templates")
@@ -342,6 +351,23 @@ export async function templateFor(
     .maybeSingle()
     .throwOnError();
   if (row?.status === "APPROVED") return row;
+
+  // A versão nova ainda em análise: usa a antiga, se aprovada.
+  const previous = TEMPLATE_PACK.find(
+    (p) => p.purpose === purpose,
+  )?.previousNames;
+  if (previous?.length) {
+    const { data: old } = await admin
+      .from("message_templates")
+      .select("name, language, body")
+      .eq("clinic_id", clinicId)
+      .in("name", previous)
+      .eq("status", "APPROVED")
+      .limit(1)
+      .maybeSingle()
+      .throwOnError();
+    if (old) return old;
+  }
 
   if (purpose !== "lembrete" && purpose !== "aviso_equipe") return null;
   const { data: clinic } = await admin
