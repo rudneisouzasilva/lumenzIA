@@ -533,6 +533,44 @@ async function mirrorAppointment(
  * Consulta ou altera a agenda da clínica pelo modo configurado. Nunca lança erro: devolve { erro }.
  * `conversationId` liga o agendamento criado à conversa que o originou (indicadores).
  */
+/**
+ * A IA às vezes chama criar_agendamento de novo para um horário que ela mesma já marcou (ela não
+ * vê os resultados das ferramentas de mensagens anteriores). Aí o horário aparece ocupado e ela diz
+ * ao paciente que "acabou de ser preenchido". Se este contato já tem esse horário marcado, devolve
+ * o agendamento existente em vez de criar outro.
+ */
+async function alreadyBooked(
+  clinicId: string,
+  params: Record<string, unknown>,
+): Promise<AgendaResult | null> {
+  const startsAt = brasiliaToUtc(params.data_hora);
+  const phone = String(params.telefone ?? "").replace(/\D/g, "");
+  if (!startsAt || phone.length < 8) return null;
+  const { data, error } = await createAdminClient()
+    .from("appointments")
+    .select("contact_phone, external_ref, professional_name")
+    .eq("clinic_id", clinicId)
+    .eq("starts_at", startsAt.toISOString())
+    .eq("status", "agendado");
+  if (error) {
+    console.error("[agenda] agendamento repetido:", error.message);
+    return null;
+  }
+  const same = data.find(
+    (a) => a.contact_phone.replace(/\D/g, "").slice(-8) === phone.slice(-8),
+  );
+  if (!same) return null;
+  return {
+    ok: true,
+    ja_agendado: true,
+    id: same.external_ref ?? undefined,
+    data_hora: utcToBrasilia(startsAt),
+    profissional: same.professional_name ?? "",
+    aviso:
+      "Este agendamento já estava feito para esta pessoa. Não marque de novo: só confirme que está tudo certo.",
+  };
+}
+
 export async function callAgenda(
   integration: Integration,
   services: { name: string; duration_minutes: number }[],
@@ -545,6 +583,11 @@ export async function callAgenda(
   }
   if (!integration.enabled) {
     return { erro: "A conexão com a agenda não está ativada nesta clínica." };
+  }
+
+  if (action === "criar_agendamento") {
+    const existing = await alreadyBooked(integration.clinic_id, params);
+    if (existing) return existing;
   }
 
   const extra = extraVars(action, params, services);
