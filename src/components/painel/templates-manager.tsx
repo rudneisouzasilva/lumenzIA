@@ -23,6 +23,7 @@ import {
   paramLabels,
   placeholderCount,
   PURPOSE_LABEL,
+  isOutdatedPackName,
   TEMPLATE_PACK,
   templateBodyProblem,
   type TemplatePurpose,
@@ -70,7 +71,11 @@ export function TemplatesManager({
   const [busy, setBusy] = useState<"pack" | "sync" | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const missingPack = TEMPLATE_PACK.some(
-    (p) => !items.some((t) => t.purpose === p.purpose),
+    (p) =>
+      !items.some(
+        (t) =>
+          t.purpose === p.purpose && !isOutdatedPackName(t.purpose, t.name),
+      ),
   );
   const ordered = [...items].sort(
     (a, b) =>

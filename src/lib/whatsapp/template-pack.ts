@@ -23,6 +23,11 @@ type PackItem = {
   footer: string;
   /** O que vai em cada variável, na ordem. */
   params: string[];
+  /**
+   * Nomes de versões antigas deste modelo. Uma versão antiga é trocada pela nova no "Criar as
+   * mensagens da LumenzIA" e continua sendo usada enquanto a nova não é aprovada.
+   */
+  previousNames?: string[];
   example: (clinic: { clinic: string; assistant: string }) => string[];
 };
 
@@ -79,12 +84,15 @@ export const TEMPLATE_PACK: PackItem[] = [
   },
   {
     purpose: "aviso_equipe",
-    name: "lumenzia_aviso_equipe",
+    // A primeira versão (lumenzia_aviso_equipe) foi reclassificada como marketing pela Meta: o
+    // texto novo é só o aviso do atendimento, sem apresentação.
+    name: "lumenzia_alerta_atendimento",
+    previousNames: ["lumenzia_aviso_equipe"],
     title: "Aviso para a equipe",
     description:
       "Vai para o WhatsApp da equipe quando um paciente precisa de atendimento humano.",
     category: "UTILITY",
-    body: "Aviso da assistente LumenzIA: {{1}}. Detalhes: {{2}}. Abra o painel da LumenzIA para responder.",
+    body: "Nova pendência no atendimento: {{1}}. Detalhes: {{2}}. Confira no painel de atendimento.",
     footer: "",
     params: ["Paciente ou assunto", "Detalhes"],
     example: () => [
@@ -102,6 +110,12 @@ export const PURPOSE_LABEL: Record<TemplatePurpose, string> = {
   aviso_equipe: "Aviso à equipe",
   outro: "Da clínica",
 };
+
+/** Modelo da LumenzIA gravado com o nome de uma versão antiga (precisa ser recriado). */
+export function isOutdatedPackName(purpose: TemplatePurpose, name: string) {
+  const item = TEMPLATE_PACK.find((p) => p.purpose === purpose);
+  return Boolean(item?.previousNames?.includes(name));
+}
 
 /** Quantas variáveis ({{1}}, {{2}}...) o texto usa: a maior numeração encontrada. */
 export function placeholderCount(body: string) {
