@@ -396,6 +396,7 @@ async function answerWithAi(
       sentImageIds,
       previousSummaries,
       channel: "instagram",
+      closing: { kind: "live", conversationId: conversation.id },
       // A retomada combinada sai por mensagem pronta do WhatsApp: só com o número da pessoa.
       followUp:
         conversation.contact_id && phone

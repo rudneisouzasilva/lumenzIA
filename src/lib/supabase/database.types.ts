@@ -802,6 +802,7 @@ export type Database = {
           attendance_state: Database["public"]["Enums"]["attendance_state"];
           channel: string;
           clinic_id: string;
+          close_requested_at: string | null;
           closed_at: string | null;
           contact_id: string | null;
           contact_phone: string;
@@ -821,6 +822,7 @@ export type Database = {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
           channel?: string;
           clinic_id: string;
+          close_requested_at?: string | null;
           closed_at?: string | null;
           contact_id?: string | null;
           contact_phone: string;
@@ -839,6 +841,7 @@ export type Database = {
           attendance_state?: Database["public"]["Enums"]["attendance_state"];
           channel?: string;
           clinic_id?: string;
+          close_requested_at?: string | null;
           closed_at?: string | null;
           contact_id?: string | null;
           contact_phone?: string;

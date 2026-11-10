@@ -16,6 +16,7 @@ import {
   agendaTools,
   callAgenda,
   simulateAgenda,
+  utcToBrasilia,
   type AgendaResult,
   type Integration,
 } from "./agenda";
@@ -24,6 +25,7 @@ import {
   FOLLOW_UP_TOOL,
   type FollowUpMode,
 } from "./follow-up";
+import { callCloseTool, CLOSE_TOOL, type ClosingMode } from "./closing";
 import { checkEvaluation } from "./evaluation";
 import { knownFieldNames, preparePatientData } from "./patient-data";
 import { buildSystemPrompt, parseReply, type AssistantContext } from "./prompt";
@@ -182,6 +184,44 @@ async function loadKnownPatientData(contactId: string | null) {
   return parsePatientData(data?.patient_data);
 }
 
+/**
+ * Os próximos agendamentos desta pessoa marcados pela LumenzIA, para a IA não marcar de novo o que
+ * já está na agenda (ela só vê o texto das mensagens anteriores, não o resultado das ferramentas).
+ */
+async function loadUpcomingAppointments(
+  clinicId: string,
+  phone: string | null,
+): Promise<string[]> {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  if (digits.length < 8) return [];
+  const { data, error } = await createAdminClient()
+    .from("appointments")
+    .select(
+      "contact_phone, starts_at, procedure_name, professional_name, patient_name",
+    )
+    .eq("clinic_id", clinicId)
+    .eq("status", "agendado")
+    .gt("starts_at", new Date().toISOString())
+    .like("contact_phone", `%${digits.slice(-8)}`)
+    .order("starts_at")
+    .limit(5);
+  if (error) {
+    console.error("[agenda] próximos agendamentos:", error.message);
+    return [];
+  }
+  return data.map((a) => {
+    const at = utcToBrasilia(new Date(a.starts_at));
+    return [
+      `${at.slice(8, 10)}/${at.slice(5, 7)}/${at.slice(0, 4)} às ${at.slice(11)}`,
+      a.procedure_name,
+      a.professional_name && `com ${a.professional_name}`,
+      a.patient_name && `(${a.patient_name})`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  });
+}
+
 const samePhone = (a: unknown, b: string) =>
   normalizePhone(String(a ?? "")) === normalizePhone(b);
 
@@ -276,6 +316,7 @@ export async function generateReply({
   history,
   agenda,
   followUp = null,
+  closing = null,
   sentImageIds = [],
   previousSummaries = [],
   channel = "whatsapp",
@@ -285,16 +326,27 @@ export async function generateReply({
   history: ChatTurn[];
   agenda: AgendaMode;
   followUp?: FollowUpMode;
+  closing?: ClosingMode;
   sentImageIds?: string[];
   previousSummaries?: string[];
 }) {
   const fields = parseBookingFields(context.clinic.booking_fields);
-  const known =
-    agenda?.kind === "live" ? await loadKnownPatientData(agenda.contactId) : {};
+  const [known, upcomingAppointments] =
+    agenda?.kind === "live"
+      ? await Promise.all([
+          loadKnownPatientData(agenda.contactId),
+          loadUpcomingAppointments(
+            agenda.integration.clinic_id,
+            agenda.contactPhone,
+          ),
+        ])
+      : [{}, []];
   const system = buildSystemPrompt(context, {
     agendaEnabled: agenda !== null,
     knownPatientFields: knownFieldNames(fields, known),
     followUpEnabled: followUp !== null,
+    closingEnabled: closing !== null,
+    upcomingAppointments,
     sentImageIds,
     previousSummaries,
     channel,
@@ -303,6 +355,7 @@ export async function generateReply({
   const tools: ToolDeclaration[] = [
     ...(agenda ? agendaTools(fields) : []),
     ...(followUp ? [FOLLOW_UP_TOOL] : []),
+    ...(closing ? [CLOSE_TOOL] : []),
   ];
   const messages: LlmMessage[] = history
     .filter((m) => m.text.trim())
@@ -331,7 +384,11 @@ export async function generateReply({
       const name = call.name;
       const args = { ...call.args };
       let result: AgendaResult;
-      if (name === FOLLOW_UP_TOOL.name) {
+      if (name === CLOSE_TOOL.name) {
+        result = closing
+          ? await callCloseTool(closing)
+          : { erro: "Ferramenta indisponível." };
+      } else if (name === FOLLOW_UP_TOOL.name) {
         result = followUp
           ? await callFollowUpTool(followUp, args)
           : { erro: "Ferramenta indisponível." };

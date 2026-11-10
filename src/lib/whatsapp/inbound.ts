@@ -434,6 +434,7 @@ async function processMessage(
       history,
       sentImageIds,
       previousSummaries,
+      closing: { kind: "live", conversationId: conversation.id },
       followUp: conversation.contact_id
         ? {
             kind: "live",
