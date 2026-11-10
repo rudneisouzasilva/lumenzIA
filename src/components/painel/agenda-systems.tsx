@@ -122,6 +122,12 @@ const Logo = ({
   </span>
 );
 
+/** O símbolo oficial do sistema, dentro do quadrado da logo. */
+const BrandMark = ({ src }: { src: string }) => (
+  // eslint-disable-next-line @next/next/no-img-element -- SVG pequeno e estático
+  <img src={src} alt="" aria-hidden className="size-7" />
+);
+
 function Section({
   title,
   children,
@@ -218,7 +224,11 @@ export function AgendaSystems({
 
       <Section title="Gestão da clínica">
         <SystemCard
-          logo={<Logo className="bg-[#7c3aed]">CE</Logo>}
+          logo={
+            <Logo className="bg-[#8b47ff]">
+              <BrandMark src="/integracoes/clinica-experts.svg" />
+            </Logo>
+          }
           name="Clínica Experts"
           description="A assistente consulta os horários, marca e cancela direto na agenda do Clínica Experts."
           status={ceStatus}
@@ -238,7 +248,11 @@ export function AgendaSystems({
           )}
         </SystemCard>
         <SystemCard
-          logo={<Logo className="bg-[#f05a28]">C</Logo>}
+          logo={
+            <Logo className="border bg-white">
+              <BrandMark src="/integracoes/clinicorp.svg" />
+            </Logo>
+          }
           name="Clinicorp"
           description="Sincronize a agenda com o Clinicorp."
           status="em-breve"
