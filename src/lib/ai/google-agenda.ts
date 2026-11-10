@@ -94,14 +94,31 @@ async function loadTargets(integration: Integration) {
           professional: null,
         }
       : null;
-  return { targets, main, clinic };
+  // Agendas escolhidas cuja conta caiu: a assistente avisa que precisa reconectar.
+  const disconnected =
+    professionals.some(
+      (p) =>
+        p.google_account_id &&
+        p.google_calendar_id &&
+        !active.has(p.google_account_id),
+    ) ||
+    Boolean(
+      integration.google_account_id &&
+      integration.google_calendar_id &&
+      !active.has(integration.google_account_id),
+    );
+  return { targets, main, clinic, disconnected };
 }
+
+const RECONNECT =
+  "A conta do Google da clínica precisa ser conectada de novo. Diga que a equipe vai confirmar o horário.";
 
 /** As agendas onde procurar: a do profissional pedido, ou todas. */
 function pick(
-  { targets, main }: Awaited<ReturnType<typeof loadTargets>>,
+  { targets, main, disconnected }: Awaited<ReturnType<typeof loadTargets>>,
   professional: unknown,
 ): Target[] | { erro: string } {
+  if (disconnected && !targets.length && !main) return { erro: RECONNECT };
   const wanted = text(professional).toLowerCase();
   if (wanted) {
     const found = targets.find(
@@ -109,6 +126,7 @@ function pick(
     );
     if (found) return [found];
     if (main) return [main];
+    if (disconnected) return { erro: RECONNECT };
     return {
       erro: `Não há agenda do Google escolhida para "${text(professional)}". Use o nome exato de um dos profissionais cadastrados.`,
     };
@@ -502,9 +520,7 @@ export async function callGoogleAgenda(
   } catch (e) {
     console.error(`[google agenda] ${action}:`, (e as Error).message);
     if (e instanceof GoogleError && e.status === 401) {
-      return {
-        erro: "A conta do Google da clínica precisa ser conectada de novo. Diga que a equipe vai confirmar o horário.",
-      };
+      return { erro: RECONNECT };
     }
     return {
       erro: "Não foi possível falar com o Google Agenda agora. Tente novamente em instantes.",

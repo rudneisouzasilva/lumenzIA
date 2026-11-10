@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarCheck, Loader2, LogOut, Plus } from "lucide-react";
+import { CalendarCheck, Loader2, LogOut, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -152,20 +152,31 @@ export function GoogleAgendaSettings({
                       `${a.calendars.length} ${a.calendars.length === 1 ? "agenda" : "agendas"}`}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={pending}
-                  onClick={() =>
-                    run(
-                      () => disconnectGoogleAccount(a.id),
-                      "Conta desconectada.",
-                    )
-                  }
-                >
-                  <LogOut />
-                  Desconectar
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {a.status !== "ativo" && googleReady && (
+                    <Button asChild size="sm">
+                      {/* A mesma conta volta com a mesma escolha de agendas. */}
+                      <a href="/api/google/conectar">
+                        <RefreshCw />
+                        Conectar de novo
+                      </a>
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={pending}
+                    onClick={() =>
+                      run(
+                        () => disconnectGoogleAccount(a.id),
+                        "Conta desconectada.",
+                      )
+                    }
+                  >
+                    <LogOut />
+                    Desconectar
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

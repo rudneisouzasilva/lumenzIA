@@ -144,7 +144,12 @@ export function AgendaSystems({
   google,
   clinicaExperts,
 }: {
-  google: { ready: boolean; connected: boolean; inUse: boolean };
+  google: {
+    ready: boolean;
+    connected: boolean;
+    broken: boolean;
+    inUse: boolean;
+  };
   clinicaExperts: {
     connected: boolean;
     broken: boolean;
@@ -153,11 +158,13 @@ export function AgendaSystems({
   };
 }) {
   const [connectOpen, setConnectOpen] = useState(false);
-  const googleStatus: Status = google.inUse
-    ? "em-uso"
-    : google.connected
-      ? "conectado"
-      : "disponivel";
+  const googleStatus: Status = google.broken
+    ? "atencao"
+    : google.inUse
+      ? "em-uso"
+      : google.connected
+        ? "conectado"
+        : "disponivel";
   const ceStatus: Status = clinicaExperts.broken
     ? "atencao"
     : clinicaExperts.inUse
@@ -179,7 +186,14 @@ export function AgendaSystems({
           description="A assistente vê os horários livres e marca no calendário de cada profissional."
           status={googleStatus}
         >
-          {google.connected ? (
+          {google.broken && google.ready ? (
+            <Button asChild className="flex-1">
+              <a href="/api/google/conectar">
+                Conectar de novo
+                <ArrowRight />
+              </a>
+            </Button>
+          ) : google.connected ? (
             <Button asChild variant="outline" className="flex-1">
               <a href="#google">
                 <Settings2 />
