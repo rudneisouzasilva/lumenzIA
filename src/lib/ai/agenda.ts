@@ -89,6 +89,11 @@ const AGENDA_TOOLS = [
           type: "string",
           description: "Data final da busca, formato AAAA-MM-DD.",
         },
+        horario: {
+          type: "string",
+          description:
+            "Quando a pessoa pediu um horário específico, ele no formato HH:mm. A resposta diz em horario_pedido_livre se ele está livre e traz os horários mais próximos dele.",
+        },
       },
       required: ["data_inicio"],
     },
@@ -212,6 +217,39 @@ export function brasiliaToUtc(dataHora: unknown) {
 /** O mesmo horário de volta para "AAAA-MM-DDTHH:mm" em Brasília. */
 export function utcToBrasilia(date: Date) {
   return new Date(date.getTime() - 3 * 3600_000).toISOString().slice(0, 16);
+}
+
+/** O horário que a pessoa pediu ("HH:mm"), vindo de `horario` ou de um data_inicio com hora. */
+export function wantedTime(params: Record<string, unknown>) {
+  const m =
+    /^(\d{1,2})[:h](\d{2})?/.exec(String(params.horario ?? "").trim()) ??
+    /T(\d{2}):(\d{2})/.exec(String(params.data_inicio ?? ""));
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2] ?? 0);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+}
+
+/**
+ * Quais horários livres de um dia mostrar: os primeiros `limit` ou, quando a pessoa pediu um
+ * horário, os `limit` mais perto dele (em ordem). Assim o horário pedido nunca fica de fora só
+ * porque o dia tem muitos horários livres antes dele.
+ */
+export function daySlotsToShow(
+  day: string,
+  slots: Date[],
+  limit: number,
+  wanted: string | null,
+) {
+  if (!wanted) return slots.slice(0, limit);
+  const target = brasiliaToUtc(`${day}T${wanted}`)!.getTime();
+  return [...slots]
+    .sort(
+      (a, b) => Math.abs(a.getTime() - target) - Math.abs(b.getTime() - target),
+    )
+    .slice(0, limit)
+    .sort((a, b) => a.getTime() - b.getTime());
 }
 
 export function durationFor(
