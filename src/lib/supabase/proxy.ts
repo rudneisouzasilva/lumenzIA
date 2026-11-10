@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { panelRedirect } from "@/lib/auth/panel-access";
+import { safeNextPath } from "@/lib/safe-path";
 
 import type { Database } from "./database.types";
 import {
@@ -84,12 +85,7 @@ export async function updateSession(request: NextRequest) {
   if (loggedIn && matches(pathname, GUEST_ONLY)) {
     const next = request.nextUrl.searchParams.get("next");
     const plan = request.nextUrl.searchParams.get("plano");
-    const target =
-      next?.startsWith("/") && !next.startsWith("//")
-        ? next
-        : plan
-          ? "/assinatura"
-          : "/painel";
+    const target = safeNextPath(next, plan ? "/assinatura" : "/painel");
     return redirectKeepingCookies(request, response, target, {
       ...(plan && !next ? { plano: plan } : {}),
     });

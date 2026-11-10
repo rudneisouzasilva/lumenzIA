@@ -1,6 +1,7 @@
 import { connection, type NextRequest } from "next/server";
 
 import { getMyClinic } from "@/lib/billing/subscription";
+import { canAccess } from "@/lib/painel/areas";
 import { parsePeriod } from "@/lib/painel/period";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,9 +17,16 @@ const ATTENDANCE = {
 };
 const MAX_ROWS = 10_000;
 
-/** Célula de CSV com ponto e vírgula (o padrão do Excel em português). */
+/**
+ * Célula de CSV com ponto e vírgula (o padrão do Excel em português). Texto que começa com =, +,
+ * - ou @ ganha um apóstrofo na frente, para o Excel não rodar como fórmula algo que veio de uma
+ * conversa.
+ */
 function cell(value: unknown) {
-  const text = value == null ? "" : String(value);
+  const raw = value == null ? "" : String(value);
+  // "@fulana" (usuário do Instagram) passa como está; "@SOMA(...)" não.
+  const formula = /^(?:[=+\-\t\r]|@(?![\w.]+$))/.test(raw);
+  const text = typeof value === "string" && formula ? `'${raw}` : raw;
   return /[";\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
@@ -42,6 +50,8 @@ export async function GET(request: NextRequest) {
     return new Response("Entre de novo para exportar.", { status: 401 });
   const clinic = await getMyClinic(supabase, user.id);
   if (!clinic) return new Response("Conta sem clínica.", { status: 403 });
+  if (!canAccess(clinic.access, "relatorios"))
+    return new Response("Sem acesso aos relatórios.", { status: 403 });
 
   const { from, to } = parsePeriod(
     Object.fromEntries(request.nextUrl.searchParams),
