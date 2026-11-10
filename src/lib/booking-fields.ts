@@ -39,13 +39,6 @@ export type PatientData = Partial<Record<FixedField, string>> & {
   campos?: Record<string, string>;
 };
 
-export const DEFAULT_BOOKING_FIELDS: BookingFields = {
-  email: "desligado",
-  cpf: "desligado",
-  data_nascimento: "desligado",
-  personalizados: [],
-};
-
 const isObject = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
