@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -80,6 +87,35 @@ type Option = { id: string; name: string };
 
 type Move = { contact: BoardContact; stage: BoardStage };
 
+/** Cartão sendo arrastado: tamanho e onde o dedo/cursor pegou nele. */
+type Drag = {
+  contact: BoardContact;
+  width: number;
+  dx: number;
+  dy: number;
+};
+
+/** Clique/toque que ainda pode virar arraste. */
+type Press = {
+  contact: BoardContact;
+  el: HTMLElement;
+  pointerId: number;
+  touch: boolean;
+  startX: number;
+  startY: number;
+  timer: number | null;
+};
+
+/** Quanto o cursor anda antes de virar arraste (abaixo disso é clique). */
+const DRAG_THRESHOLD = 5;
+/** No celular, segurar o dedo este tempo começa o arraste. */
+const LONG_PRESS_MS = 250;
+/** Faixa perto da borda que faz o quadro rolar sozinho. */
+const EDGE = 72;
+
+const byRecent = (a: BoardContact, b: BoardContact) =>
+  b.lastContactAt.localeCompare(a.lastContactAt);
+
 export function PipelineBoard({
   query,
   stages,
@@ -96,8 +132,13 @@ export function PipelineBoard({
   members: Option[];
 }) {
   const [contacts, setContacts] = useState(initial);
-  const [dragging, setDragging] = useState<string | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const press = useRef<Press | null>(null);
+  const pointer = useRef({ x: 0, y: 0 });
+  const ghost = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const justDropped = useRef(false);
   const [open, setOpen] = useState<BoardContact | null>(null);
   const [askLost, setAskLost] = useState<Move | null>(null);
   const [editing, setEditing] = useState(false);
@@ -154,6 +195,161 @@ export function PipelineBoard({
     });
   };
 
+  // Coluna (etapa) embaixo do cursor. O fantasma não recebe eventos, então
+  // não atrapalha a busca.
+  const stageAt = (x: number, y: number) =>
+    (
+      document
+        .elementFromPoint(x, y)
+        ?.closest("[data-stage-id]") as HTMLElement | null
+    )?.dataset.stageId ?? null;
+
+  const placeGhost = () => {
+    if (!ghost.current || !drag) return;
+    const { x, y } = pointer.current;
+    ghost.current.style.transform = `translate3d(${x - drag.dx}px, ${y - drag.dy}px, 0) rotate(2deg)`;
+  };
+  // A cada render o React não mexe no transform; aplicamos a posição atual.
+  useLayoutEffect(placeGhost);
+
+  const startDrag = (p: Press) => {
+    const rect = p.el.getBoundingClientRect();
+    setDrag({
+      contact: p.contact,
+      width: rect.width,
+      dx: p.startX - rect.left,
+      dy: p.startY - rect.top,
+    });
+    setOver(p.contact.stageId);
+    if (p.touch) navigator.vibrate?.(10);
+  };
+
+  const clearPress = () => {
+    if (press.current?.timer) window.clearTimeout(press.current.timer);
+    press.current = null;
+  };
+
+  const endDrag = (drop: boolean) => {
+    const p = press.current;
+    clearPress();
+    if (!drag) return;
+    const target = drop ? stages.find((s) => s.id === over) : undefined;
+    setDrag(null);
+    setOver(null);
+    // O clique que vem logo depois de soltar não deve abrir o contato.
+    justDropped.current = true;
+    window.setTimeout(() => (justDropped.current = false), 0);
+    if (target && p) move(p.contact, target);
+  };
+
+  const onPointerDown = (e: React.PointerEvent, contact: BoardContact) => {
+    if (e.button !== 0 || drag) return;
+    const touch = e.pointerType === "touch";
+    const p: Press = {
+      contact,
+      el: e.currentTarget as HTMLElement,
+      pointerId: e.pointerId,
+      touch,
+      startX: e.clientX,
+      startY: e.clientY,
+      timer: null,
+    };
+    pointer.current = { x: e.clientX, y: e.clientY };
+    // No toque, arrastar o dedo direto rola a tela; segurar um instante pega
+    // o cartão.
+    if (touch)
+      p.timer = window.setTimeout(() => {
+        p.timer = null;
+        if (press.current === p) startDrag(p);
+      }, LONG_PRESS_MS);
+    press.current = p;
+  };
+
+  const onPointerMove = useEffectEvent((e: PointerEvent) => {
+    const p = press.current;
+    if (!p || e.pointerId !== p.pointerId) return;
+    pointer.current = { x: e.clientX, y: e.clientY };
+    if (!drag) {
+      const moved = Math.hypot(e.clientX - p.startX, e.clientY - p.startY);
+      if (moved < DRAG_THRESHOLD) return;
+      if (p.touch)
+        clearPress(); // mexeu antes do tempo: é rolagem
+      else startDrag(p);
+      return;
+    }
+    placeGhost();
+    const id = stageAt(e.clientX, e.clientY);
+    if (id !== over) setOver(id);
+  });
+
+  const onPointerUp = useEffectEvent((e: PointerEvent) => {
+    if (press.current && e.pointerId === press.current.pointerId)
+      endDrag(e.type === "pointerup");
+  });
+
+  const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key === "Escape" && drag) endDrag(false);
+  });
+
+  // Rola o quadro sozinho quando o cartão chega perto da borda.
+  const autoScroll = useEffectEvent(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const { x, y } = pointer.current;
+    const rect = el.getBoundingClientRect();
+    const left = Math.max(rect.left, 0) + EDGE;
+    const right = Math.min(rect.right, window.innerWidth) - EDGE;
+    const step =
+      x < left
+        ? -Math.ceil(((left - x) / EDGE) * 16)
+        : x > right
+          ? Math.ceil(((x - right) / EDGE) * 16)
+          : 0;
+    if (!step) return;
+    const before = el.scrollLeft;
+    el.scrollLeft += step;
+    if (el.scrollLeft !== before) {
+      const id = stageAt(x, y);
+      if (id !== over) setOver(id);
+    }
+  });
+
+  useEffect(() => {
+    const blockTouchScroll = (e: TouchEvent) => {
+      if (drag) e.preventDefault();
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("touchmove", blockTouchScroll, { passive: false });
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("touchmove", blockTouchScroll);
+    };
+  }, [drag]);
+
+  useEffect(() => {
+    if (!drag) return;
+    let frame = 0;
+    const tick = () => {
+      autoScroll();
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    const { style } = document.body;
+    style.cursor = "grabbing";
+    style.userSelect = "none";
+    return () => {
+      cancelAnimationFrame(frame);
+      style.cursor = "";
+      style.userSelect = "";
+    };
+  }, [drag]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -177,7 +373,10 @@ export function PipelineBoard({
         </Button>
       </div>
 
-      <div className="-mx-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0">
+      <div
+        ref={scroller}
+        className="-mx-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0"
+      >
         <div className="flex gap-3">
           {columns.map((stage) => {
             const id = stage?.id ?? "none";
@@ -188,25 +387,23 @@ export function PipelineBoard({
               items.length -
               initial.filter((c) => c.stageId === (stage?.id ?? null)).length;
             const total = (stage?.total ?? unstagedTotal) + moved;
+            const target = drag !== null && stage !== null && over === id;
+            // Enquanto arrasta, o cartão aparece como "vaga" na coluna de
+            // destino, na posição em que vai ficar.
+            const shown =
+              target && drag.contact.stageId !== stage.id
+                ? [...items, drag.contact].sort(byRecent)
+                : items;
             return (
               <section
                 key={id}
                 aria-label={stage?.name ?? "Sem etapa"}
-                onDragOver={(e) => {
-                  if (!stage || !dragging) return;
-                  e.preventDefault();
-                  setOver(id);
-                }}
-                onDragLeave={() => setOver((o) => (o === id ? null : o))}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setOver(null);
-                  const contact = contacts.find((c) => c.id === dragging);
-                  if (stage && contact) move(contact, stage);
-                }}
+                data-stage-id={stage?.id}
                 className={cn(
                   "flex w-72 shrink-0 flex-col rounded-2xl border bg-muted/40 transition-colors",
-                  over === id && "border-primary bg-primary/5",
+                  target &&
+                    "border-primary bg-primary/5 ring-2 ring-primary/20",
+                  drag && !stage && "opacity-60",
                 )}
               >
                 <header
@@ -233,34 +430,33 @@ export function PipelineBoard({
                   </span>
                 </header>
                 <ul className="flex max-h-[65svh] min-h-24 flex-col gap-2 overflow-y-auto px-2 pb-2">
-                  {items.map((c) => (
-                    <li
-                      key={c.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = "move";
-                        setDragging(c.id);
-                      }}
-                      onDragEnd={() => {
-                        setDragging(null);
-                        setOver(null);
-                      }}
-                    >
-                      <ContactCard
-                        contact={c}
-                        owner={members.find((m) => m.id === c.ownerId)?.name}
-                        onOpen={() => setOpen(c)}
-                        dragging={dragging === c.id}
-                      />
-                    </li>
-                  ))}
+                  {shown.map((c) => {
+                    const held = drag?.contact.id === c.id;
+                    return (
+                      <li
+                        key={c.id}
+                        onPointerDown={(e) => onPointerDown(e, c)}
+                        onContextMenu={(e) => drag && e.preventDefault()}
+                        className="[-webkit-touch-callout:none]"
+                      >
+                        <ContactCard
+                          contact={c}
+                          owner={members.find((m) => m.id === c.ownerId)?.name}
+                          slot={held ? (target ? "target" : "source") : null}
+                          onOpen={() => {
+                            if (!justDropped.current) setOpen(c);
+                          }}
+                        />
+                      </li>
+                    );
+                  })}
                   {total > items.length && (
                     <li className="px-2 py-1 text-center text-xs text-muted-foreground">
                       +{(total - items.length).toLocaleString("pt-BR")}{" "}
                       {query ? "na busca" : "mais antigos (use a busca)"}
                     </li>
                   )}
-                  {!items.length && (
+                  {!shown.length && (
                     <li className="rounded-xl border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
                       Nenhum contato
                     </li>
@@ -271,6 +467,21 @@ export function PipelineBoard({
           })}
         </div>
       </div>
+
+      {drag && (
+        <div
+          ref={ghost}
+          aria-hidden
+          className="pointer-events-none fixed top-0 left-0 z-50 will-change-transform"
+          style={{ width: drag.width }}
+        >
+          <ContactCard
+            contact={drag.contact}
+            owner={members.find((m) => m.id === drag.contact.ownerId)?.name}
+            lifted
+          />
+        </div>
+      )}
 
       {open && (
         <ContactDialog
@@ -311,20 +522,32 @@ function ContactCard({
   contact,
   owner,
   onOpen,
-  dragging,
+  lifted = false,
+  slot = null,
 }: {
   contact: BoardContact;
   owner?: string;
-  onOpen: () => void;
-  dragging: boolean;
+  onOpen?: () => void;
+  /** Cópia que segue o cursor durante o arraste. */
+  lifted?: boolean;
+  /**
+   * Enquanto arrasta, o cartão original vira a "vaga": tracejada, sem texto.
+   * É o mesmo elemento (não troca), senão o toque no celular se perde.
+   */
+  slot?: "source" | "target" | null;
 }) {
   return (
     <button
       type="button"
       onClick={onOpen}
+      tabIndex={lifted ? -1 : undefined}
       className={cn(
-        "w-full cursor-grab rounded-xl border bg-card p-3 text-left shadow-xs transition hover:border-primary/40 active:cursor-grabbing",
-        dragging && "opacity-50",
+        "w-full cursor-grab touch-manipulation rounded-xl border bg-card p-3 text-left shadow-xs transition select-none hover:border-primary/40 active:cursor-grabbing",
+        lifted &&
+          "cursor-grabbing border-primary/50 shadow-xl ring-1 ring-primary/20",
+        slot && "border-dashed shadow-none *:invisible",
+        slot === "source" && "border-border bg-muted/40",
+        slot === "target" && "border-primary/60 bg-primary/10",
       )}
     >
       <p className="truncate text-sm font-medium">
