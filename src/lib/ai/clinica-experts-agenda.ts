@@ -6,8 +6,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import {
   brasiliaToUtc,
+  daySlotsToShow,
   durationFor,
   utcToBrasilia,
+  wantedTime,
   type AgendaResult,
   type Integration,
 } from "./agenda";
@@ -46,6 +48,7 @@ const MAX_DAYS = 14;
 const MAX_DAY_CALLS = 14; // consultas de horários por pedido (o limite deles é ~100 por minuto)
 const SLOTS_PER_DAY = 4;
 const MAX_SLOTS = 12;
+const MAX_SLOTS_ONE_DAY = 24;
 const MIN_NOTICE_MS = 60 * 60_000;
 const LOOKAHEAD_DAYS = 180;
 const SLOT_INTERVAL = 30;
@@ -228,37 +231,54 @@ async function availability(
     params.procedimento,
   );
   const earliest = Date.now() + MIN_NOTICE_MS;
+  const wanted = wantedTime(params);
+  const single = list.length === 1;
+  const perDayLimit = single ? MAX_SLOTS_ONE_DAY : SLOTS_PER_DAY;
+  const maxSlots = single ? MAX_SLOTS_ONE_DAY : MAX_SLOTS;
+  const wantedAt = wanted
+    ? brasiliaToUtc(`${list[0]}T${wanted}`)!.getTime()
+    : 0;
+  let wantedFree = false;
   const free: { profissional: string; data_hora: string }[] = [];
   const perTarget = new Map<string, number>();
   let calls = 0;
   for (const day of list) {
     // O dia inteiro já passou (em Brasília): nem consulta.
     if (brasiliaToUtc(`${day}T23:59`)!.getTime() < earliest) continue;
-    const open = chosen.filter((t) => (perTarget.get(t.uuid) ?? 0) < MAX_SLOTS);
+    const open = chosen.filter((t) => (perTarget.get(t.uuid) ?? 0) < maxSlots);
     if (!open.length || calls + open.length > MAX_DAY_CALLS) break;
     calls += open.length;
     const hours = await Promise.all(
       open.map((t) => hoursOn(integration.clinic_id, t, day, procedure?.id)),
     );
     open.forEach((target, i) => {
-      let perDay = 0;
-      for (const slot of hours[i]) {
-        if (slot.getTime() < earliest) continue;
+      const future = hours[i].filter((slot) => slot.getTime() >= earliest);
+      if (wanted && future.some((slot) => slot.getTime() === wantedAt)) {
+        wantedFree = true;
+      }
+      const used = perTarget.get(target.uuid) ?? 0;
+      for (const slot of daySlotsToShow(
+        day,
+        future,
+        Math.min(perDayLimit, maxSlots - used),
+        wanted,
+      )) {
         free.push({
           profissional: target.professional ?? "",
           data_hora: utcToBrasilia(slot),
         });
         perTarget.set(target.uuid, (perTarget.get(target.uuid) ?? 0) + 1);
-        if (
-          ++perDay >= SLOTS_PER_DAY ||
-          (perTarget.get(target.uuid) ?? 0) >= MAX_SLOTS
-        )
-          break;
       }
     });
   }
   return {
     duracao_minutos: minutesFor(services, params.procedimento, procedure),
+    ...(wanted
+      ? {
+          horario_pedido: `${list[0]}T${wanted}`,
+          horario_pedido_livre: wantedFree,
+        }
+      : {}),
     horarios_livres: free,
     ...(free.length
       ? {}

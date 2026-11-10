@@ -6,8 +6,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import {
   brasiliaToUtc,
+  daySlotsToShow,
   durationFor,
   utcToBrasilia,
+  wantedTime,
   type AgendaResult,
   type Integration,
 } from "./agenda";
@@ -37,6 +39,7 @@ const SLOT_STEP_MINUTES = 30;
 const MAX_DAYS = 14;
 const SLOTS_PER_DAY = 4;
 const MAX_SLOTS = 12;
+const MAX_SLOTS_ONE_DAY = 24;
 const MIN_NOTICE_MS = 60 * 60_000;
 const LOOKAHEAD_DAYS = 180;
 const DEFAULT_DAYS = [1, 2, 3, 4, 5, 6];
@@ -312,28 +315,52 @@ async function availability(
   const busy = await busyTimes(chosen, rangeStart, rangeEnd);
   const earliest = Date.now() + MIN_NOTICE_MS;
 
+  const wanted = wantedTime(params);
+  const single = list.length === 1;
+  const perDayLimit = single ? MAX_SLOTS_ONE_DAY : SLOTS_PER_DAY;
+  const maxSlots = single ? MAX_SLOTS_ONE_DAY : MAX_SLOTS;
+  const wantedAt = wanted
+    ? brasiliaToUtc(`${list[0]}T${wanted}`)!.getTime()
+    : 0;
+  let wantedFree = false;
+
   const free: { profissional: string; data_hora: string }[] = [];
   for (const target of chosen) {
     const taken = busy.get(target.calendarId) ?? [];
     let count = 0;
     for (const day of list) {
-      let perDay = 0;
-      for (const slot of daySlots(day, loaded.clinic, minutes)) {
+      const open = daySlots(day, loaded.clinic, minutes).filter((slot) => {
         const start = slot.getTime();
-        if (start < earliest) continue;
-        if (overlaps(taken, start, start + minutes * 60_000)) continue;
+        return (
+          start >= earliest && !overlaps(taken, start, start + minutes * 60_000)
+        );
+      });
+      if (wanted && open.some((slot) => slot.getTime() === wantedAt)) {
+        wantedFree = true;
+      }
+      for (const slot of daySlotsToShow(
+        day,
+        open,
+        Math.min(perDayLimit, maxSlots - count),
+        wanted,
+      )) {
         free.push({
           profissional: target.professional ?? "",
           data_hora: utcToBrasilia(slot),
         });
         count++;
-        if (++perDay >= SLOTS_PER_DAY || count >= MAX_SLOTS) break;
       }
-      if (count >= MAX_SLOTS) break;
+      if (count >= maxSlots) break;
     }
   }
   return {
     duracao_minutos: minutes,
+    ...(wanted
+      ? {
+          horario_pedido: `${list[0]}T${wanted}`,
+          horario_pedido_livre: wantedFree,
+        }
+      : {}),
     horarios_livres: free,
     ...(free.length
       ? {}
