@@ -74,6 +74,22 @@ export function isoDateInBrasilia(date: Date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(date);
 }
 
+/**
+ * As formas com que um celular brasileiro pode chegar do WhatsApp: com e sem o nono dígito
+ * ("5541999990000" e "554199990000"). Outros países voltam como estão.
+ */
+export function phoneVariants(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits.startsWith("55")) return [digits];
+  const ddd = digits.slice(2, 4);
+  const local = digits.slice(4);
+  if (local.length === 9 && local.startsWith("9")) {
+    return [digits, `55${ddd}${local.slice(1)}`];
+  }
+  if (local.length === 8) return [digits, `55${ddd}9${local}`];
+  return [digits];
+}
+
 /** "(41) 99999-0000" → "5541999990000". Sem o código do país, considera Brasil. */
 export function normalizePhone(raw: string) {
   const digits = raw.replace(/\D/g, "");

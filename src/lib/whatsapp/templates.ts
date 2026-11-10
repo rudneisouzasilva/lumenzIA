@@ -316,6 +316,57 @@ export async function syncTemplates(clinicId: string) {
   return null;
 }
 
+/**
+ * Exclui um template na Meta e no painel. Precisa sair da Meta também: senão o "Sincronizar"
+ * traz de volta. A Meta não deixa usar o mesmo nome de novo por 30 dias.
+ */
+export async function deleteTemplate(
+  clinicId: string,
+  templateId: string,
+): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("message_templates")
+    .select("id, name, meta_template_id")
+    .eq("id", templateId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle()
+    .throwOnError();
+  if (!row) return null;
+
+  if (row.meta_template_id) {
+    const access = await wabaAccess(admin, clinicId);
+    if (!access) return "Conecte o WhatsApp da clínica antes.";
+    const query = new URLSearchParams({
+      name: row.name,
+      hsm_id: row.meta_template_id,
+    });
+    try {
+      await graph(
+        `${encodeURIComponent(access.wabaId)}/message_templates?${query}`,
+        { method: "DELETE", token: access.token },
+      );
+    } catch (e) {
+      // Já não existe na Meta: basta tirar do painel.
+      const gone =
+        e instanceof GraphError &&
+        (e.code === 100 ||
+          /not exist|does not exist|não existe/i.test(e.message));
+      if (!gone) {
+        console.error(`[templates] excluir ${row.name}:`, (e as Error).message);
+        return `A Meta recusou a exclusão: ${errorText(e)}`;
+      }
+    }
+  }
+
+  await admin
+    .from("message_templates")
+    .delete()
+    .eq("id", row.id)
+    .throwOnError();
+  return null;
+}
+
 /** Aviso da Meta de que um template foi aprovado, recusado, pausado... */
 export async function applyTemplateStatus(event: {
   templateId: string;

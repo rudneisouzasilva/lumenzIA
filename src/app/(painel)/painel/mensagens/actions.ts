@@ -8,11 +8,14 @@ import { getActionContext } from "@/lib/painel/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Tables } from "@/lib/supabase/database.types";
 import {
+  isOutdatedPackName,
   placeholderCount,
   TEMPLATE_PACK,
   templateBodyProblem,
+  type TemplatePurpose,
 } from "@/lib/whatsapp/template-pack";
 import {
+  deleteTemplate,
   ensureTemplatePack,
   submitTemplate,
   syncTemplates,
@@ -66,6 +69,41 @@ export async function syncTemplatesAction(): Promise<FormResult> {
   } catch (e) {
     console.error("[mensagens] sincronizar:", (e as Error).message);
     return fail("Não foi possível sincronizar agora. Tente de novo.");
+  }
+}
+
+/**
+ * Exclui uma mensagem da clínica (ou uma versão antiga de uma da LumenzIA) na Meta e no painel.
+ * As que a assistente usa hoje não podem ser excluídas: seriam criadas de novo.
+ */
+export async function deleteTemplateAction(id: unknown): Promise<FormResult> {
+  const parsed = z.uuid().safeParse(id);
+  if (!parsed.success) return fail("Mensagem inválida.");
+  const ctx = await getActionContext("mensagens");
+  if ("error" in ctx) return fail(ctx.error);
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("message_templates")
+    .select("purpose, name")
+    .eq("id", parsed.data)
+    .eq("clinic_id", ctx.clinic.id)
+    .maybeSingle();
+  if (!row) return { ok: true };
+  if (
+    row.purpose !== "outro" &&
+    !isOutdatedPackName(row.purpose as TemplatePurpose, row.name)
+  ) {
+    return fail(
+      "Esta mensagem é usada pela assistente e não pode ser excluída. Você pode editar o texto.",
+    );
+  }
+  try {
+    const error = await deleteTemplate(ctx.clinic.id, parsed.data);
+    refresh();
+    return error ? fail(error) : { ok: true };
+  } catch (e) {
+    console.error("[mensagens] excluir:", (e as Error).message);
+    return fail("Não foi possível excluir agora. Tente de novo.");
   }
 }
 

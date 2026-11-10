@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, PackagePlus, Pencil, Plus, RefreshCw } from "lucide-react";
+import {
+  Loader2,
+  PackagePlus,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
   createTemplatePackAction,
+  deleteTemplateAction,
   saveTemplateAction,
   syncTemplatesAction,
 } from "@/app/(painel)/painel/mensagens/actions";
@@ -24,6 +32,7 @@ import {
   placeholderCount,
   PURPOSE_LABEL,
   isOutdatedPackName,
+  outdatedPackItem,
   TEMPLATE_PACK,
   templateBodyProblem,
   type TemplatePurpose,
@@ -70,6 +79,7 @@ export function TemplatesManager({
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<"pack" | "sync" | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [removing, setRemoving] = useState<TemplateItem | null>(null);
   const missingPack = TEMPLATE_PACK.some(
     (p) =>
       !items.some(
@@ -162,7 +172,11 @@ export function TemplatesManager({
       {ordered.length ? (
         <ul className="grid gap-3">
           {ordered.map((t) => {
-            const pack = TEMPLATE_PACK.find((p) => p.purpose === t.purpose);
+            const old = outdatedPackItem(t.name);
+            const pack = old
+              ? null
+              : TEMPLATE_PACK.find((p) => p.purpose === t.purpose);
+            const deletable = t.purpose === "outro" || Boolean(old);
             return (
               <li
                 key={t.id}
@@ -170,9 +184,13 @@ export function TemplatesManager({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium">{pack?.title ?? t.name}</p>
+                    <p className="font-medium">
+                      {old
+                        ? `${old.title} (versão antiga)`
+                        : (pack?.title ?? t.name)}
+                    </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {PURPOSE_LABEL[t.purpose]} ·{" "}
+                      {old ? "Versão antiga" : PURPOSE_LABEL[t.purpose]} ·{" "}
                       {CATEGORY_LABEL[t.category] ?? t.category} ·{" "}
                       <span className="font-mono">{t.name}</span>
                     </p>
@@ -201,11 +219,29 @@ export function TemplatesManager({
                       <Pencil />
                       Editar
                     </Button>
+                    {deletable && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        disabled={!whatsappConnected}
+                        onClick={() => setRemoving(t)}
+                      >
+                        <Trash2 />
+                        Excluir
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {pack && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     {pack.description}
+                  </p>
+                )}
+                {old && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Foi trocada por {old.name}. A assistente só usa esta se
+                    estiver aprovada e a nova ainda não. Pode excluir.
                   </p>
                 )}
                 <p className="mt-3 rounded-xl bg-muted/60 px-3 py-2 text-sm whitespace-pre-wrap">
@@ -231,6 +267,13 @@ export function TemplatesManager({
         </p>
       )}
 
+      {removing && (
+        <DeleteTemplateDialog
+          item={removing}
+          onClose={() => setRemoving(null)}
+        />
+      )}
+
       {draft && (
         <TemplateEditor
           key={draft.id ?? "new"}
@@ -239,6 +282,48 @@ export function TemplatesManager({
         />
       )}
     </div>
+  );
+}
+
+function DeleteTemplateDialog({
+  item,
+  onClose,
+}: {
+  item: TemplateItem;
+  onClose: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const remove = () =>
+    startTransition(async () => {
+      const result = await deleteTemplateAction(item.id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Mensagem excluída.");
+      onClose();
+    });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogTitle>Excluir esta mensagem?</DialogTitle>
+        <DialogDescription>
+          <span className="font-mono">{item.name}</span> sai do painel e da sua
+          conta na Meta. Não dá para desfazer, e a Meta não deixa criar outra
+          com o mesmo nome por 30 dias.
+        </DialogDescription>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" disabled={pending} onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button variant="destructive" disabled={pending} onClick={remove}>
+            {pending && <Loader2 className="animate-spin" />}
+            Excluir
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

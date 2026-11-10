@@ -117,6 +117,11 @@ export function isOutdatedPackName(purpose: TemplatePurpose, name: string) {
   return Boolean(item?.previousNames?.includes(name));
 }
 
+/** O modelo da LumenzIA de que este nome é uma versão antiga (qualquer propósito gravado). */
+export function outdatedPackItem(name: string) {
+  return TEMPLATE_PACK.find((p) => p.previousNames?.includes(name)) ?? null;
+}
+
 /** Quantas variáveis ({{1}}, {{2}}...) o texto usa: a maior numeração encontrada. */
 export function placeholderCount(body: string) {
   let max = 0;
