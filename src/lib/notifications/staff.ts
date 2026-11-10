@@ -2,8 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Database } from "@/lib/supabase/database.types";
 import { phoneVariants } from "@/lib/format";
+import type { Database, Json } from "@/lib/supabase/database.types";
 import { sendText, type Sender } from "@/lib/whatsapp/client";
 import { sendTemplateMessage, templateFor } from "@/lib/whatsapp/templates";
 
@@ -33,7 +33,9 @@ export async function notifyStaff(
 ) {
   const { data: clinic } = await admin
     .from("clinics")
-    .select("name, staff_alert_channels, staff_phone_number, staff_alert_email")
+    .select(
+      "name, staff_alert_channels, staff_phone_numbers, staff_last_inbound, staff_alert_email",
+    )
     .eq("id", clinicId)
     .single()
     .throwOnError();
@@ -41,19 +43,24 @@ export async function notifyStaff(
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
 
-  if (channels.includes("whatsapp") && clinic.staff_phone_number && sender) {
-    try {
-      await sendStaffWhatsapp(
-        admin,
-        clinicId,
-        sender,
-        clinic.staff_phone_number,
-        alert,
-        appUrl,
-      );
-    } catch (e) {
-      console.error("[avisos] WhatsApp da equipe:", (e as Error).message);
-    }
+  if (channels.includes("whatsapp") && sender) {
+    await Promise.all(
+      clinic.staff_phone_numbers.map(async (phone) => {
+        try {
+          await sendStaffWhatsapp(
+            admin,
+            clinicId,
+            sender,
+            phone,
+            windowOpen(clinic.staff_last_inbound, phone),
+            alert,
+            appUrl,
+          );
+        } catch (e) {
+          console.error("[avisos] WhatsApp da equipe:", (e as Error).message);
+        }
+      }),
+    );
   }
 
   if (
@@ -91,10 +98,11 @@ async function sendStaffWhatsapp(
   clinicId: string,
   sender: Sender,
   phone: string,
+  inWindow: boolean,
   alert: StaffAlert,
   appUrl: string | undefined,
 ) {
-  if (await staffWindowOpen(admin, clinicId, phone)) {
+  if (inWindow) {
     try {
       await sendText(
         sender,
@@ -128,19 +136,48 @@ async function sendStaffWhatsapp(
 }
 
 /**
- * A equipe escreveu para o número da clínica nas últimas 24 horas? Então a Meta deixa mandar
- * mensagem comum para ela, sem modelo. Margem de 1 hora para não bater no limite.
+ * Este número da equipe escreveu para o número da clínica nas últimas 24 horas? Então a Meta deixa
+ * mandar mensagem comum para ele, sem modelo. Margem de 1 hora para não bater no limite.
  */
-async function staffWindowOpen(admin: Admin, clinicId: string, phone: string) {
-  const since = new Date(Date.now() - 23 * 3600_000).toISOString();
+function windowOpen(lastInbound: Json, phone: string) {
+  const map =
+    lastInbound &&
+    typeof lastInbound === "object" &&
+    !Array.isArray(lastInbound)
+      ? lastInbound
+      : {};
+  const since = Date.now() - 23 * 3600_000;
+  return phoneVariants(phone).some((p) => {
+    const at = map[p];
+    return typeof at === "string" && new Date(at).getTime() > since;
+  });
+}
+
+/**
+ * Mensagem de um número da equipe para o número da clínica: a assistente não responde, mas a
+ * janela de 24 horas desse número fica aberta para os próximos avisos.
+ */
+export async function recordStaffInbound(
+  admin: Admin,
+  clinicId: string,
+  phone: string,
+  at = new Date(),
+) {
   const { data } = await admin
-    .from("messages")
-    .select("id")
-    .eq("clinic_id", clinicId)
-    .eq("role", "user")
-    .in("contact_phone", phoneVariants(phone))
-    .gt("created_at", since)
-    .limit(1)
+    .from("clinics")
+    .select("staff_last_inbound")
+    .eq("id", clinicId)
+    .single()
     .throwOnError();
-  return Boolean(data?.length);
+  const current =
+    data.staff_last_inbound &&
+    typeof data.staff_last_inbound === "object" &&
+    !Array.isArray(data.staff_last_inbound)
+      ? data.staff_last_inbound
+      : {};
+  await admin
+    .from("clinics")
+    .update({ staff_last_inbound: { ...current, [phone]: at.toISOString() } })
+    .eq("id", clinicId)
+    .throwOnError();
 }

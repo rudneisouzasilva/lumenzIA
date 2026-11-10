@@ -6,13 +6,17 @@ import { z } from "zod";
 import type { FormResult } from "@/lib/auth/validation";
 import { parseBookingFields } from "@/lib/booking-fields";
 import { normalizePhone } from "@/lib/format";
-import { isEmail, STAFF_CHANNELS } from "@/lib/notifications/channels";
+import {
+  isEmail,
+  MAX_STAFF_PHONES,
+  STAFF_CHANNELS,
+} from "@/lib/notifications/channels";
 import { getActionContext } from "@/lib/painel/context";
 
 const schema = z.object({
   reminderHoursBefore: z.number().int().min(0).max(168),
   channels: z.array(z.enum(STAFF_CHANNELS)).max(STAFF_CHANNELS.length),
-  phone: z.string().trim().max(40),
+  phones: z.array(z.string().trim().max(40)).max(MAX_STAFF_PHONES),
   email: z.string().trim().toLowerCase().max(254),
   reminderByEmail: z.boolean(),
 });
@@ -25,18 +29,22 @@ export async function saveNotificationSettings(
 ): Promise<FormResult> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) return fail("Confira os campos.");
-  const { reminderHoursBefore, channels, phone, email, reminderByEmail } =
+  const { reminderHoursBefore, channels, phones, email, reminderByEmail } =
     parsed.data;
 
-  const staffPhone = phone ? normalizePhone(phone) : null;
-  if (phone && !staffPhone) {
-    return fail("WhatsApp da equipe com DDD, ex.: (11) 99999-0000.");
+  const staffPhones: string[] = [];
+  for (const raw of phones.filter(Boolean)) {
+    const phone = normalizePhone(raw);
+    if (!phone) {
+      return fail(`WhatsApp da equipe com DDD, ex.: (11) 99999-0000 (${raw}).`);
+    }
+    if (!staffPhones.includes(phone)) staffPhones.push(phone);
   }
   if (email && !isEmail(email)) return fail("E-mail da equipe inválido.");
   if (!channels.length) {
     return fail("Escolha pelo menos um canal para avisar a equipe.");
   }
-  if (channels.includes("whatsapp") && !staffPhone) {
+  if (channels.includes("whatsapp") && !staffPhones.length) {
     return fail("Informe o WhatsApp da equipe ou desligue esse canal.");
   }
   if (channels.includes("email") && !email) {
@@ -65,7 +73,7 @@ export async function saveNotificationSettings(
       .from("clinics")
       .update({
         staff_alert_channels: channels,
-        staff_phone_number: staffPhone,
+        staff_phone_numbers: staffPhones,
         staff_alert_email: email || null,
         reminder_by_email: reminderByEmail,
       })

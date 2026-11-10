@@ -90,6 +90,12 @@ export function phoneVariants(phone: string) {
   return [digits];
 }
 
+/** O mesmo número, com ou sem o nono dígito. */
+export function samePhone(a: string, b: string) {
+  const other = b.replace(/\D/g, "");
+  return Boolean(other) && phoneVariants(a).includes(other);
+}
+
 /** "(41) 99999-0000" → "5541999990000". Sem o código do país, considera Brasil. */
 export function normalizePhone(raw: string) {
   const digits = raw.replace(/\D/g, "");

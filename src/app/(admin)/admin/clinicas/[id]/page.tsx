@@ -271,7 +271,6 @@ async function Clinic({
                 phoneNumberId: clinic.whatsapp_phone_number_id ?? "",
                 wabaId: clinic.whatsapp_waba_id ?? "",
                 displayPhone: clinic.whatsapp_display_phone ?? "",
-                staffPhone: clinic.staff_phone_number ?? "",
                 token: "",
                 removeToken: false,
                 appSecret: "",

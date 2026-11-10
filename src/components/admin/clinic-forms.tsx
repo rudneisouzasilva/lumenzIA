@@ -193,13 +193,6 @@ export function WhatsappTechForm({
           error={errors.displayPhone?.message}
           {...form.register("displayPhone")}
         />
-        <Field
-          label="WhatsApp da equipe (avisos)"
-          placeholder="5511999990000"
-          hint="Recebe o aviso de “precisa de atendimento humano”."
-          error={errors.staffPhone?.message}
-          {...form.register("staffPhone")}
-        />
       </div>
       <Field
         label="Token de acesso"

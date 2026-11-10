@@ -11,8 +11,8 @@ import {
   pickActiveSubscription,
   type SubscriptionRow,
 } from "@/lib/billing/subscription";
-import { formatDate } from "@/lib/format";
-import { notifyStaff } from "@/lib/notifications/staff";
+import { formatDate, samePhone } from "@/lib/format";
+import { notifyStaff, recordStaffInbound } from "@/lib/notifications/staff";
 import { publicImageUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
@@ -362,6 +362,17 @@ async function processMessage(
 ) {
   const from = String(msg.from ?? "").replace(/\D/g, "");
   if (!from) return;
+
+  // WhatsApp da equipe: a assistente não responde (é a equipe respondendo um aviso ou testando).
+  if (clinic.staff_phone_numbers.some((p) => samePhone(p, from))) {
+    await recordStaffInbound(
+      admin,
+      clinic.id,
+      from,
+      new Date(whatsappTime(msg.timestamp) ?? Date.now()),
+    );
+    return;
+  }
 
   const body = messageText(msg);
   if (!body) return;

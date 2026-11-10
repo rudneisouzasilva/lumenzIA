@@ -96,7 +96,7 @@ export async function saveClinicWhatsapp(
   const { data: before, error: readError } = await ctx.admin
     .from("clinics")
     .select(
-      "whatsapp_phone_number_id, whatsapp_waba_id, whatsapp_display_phone, staff_phone_number",
+      "whatsapp_phone_number_id, whatsapp_waba_id, whatsapp_display_phone",
     )
     .eq("id", ctx.clinicId)
     .single();
@@ -106,7 +106,6 @@ export async function saveClinicWhatsapp(
     whatsapp_phone_number_id: v.phoneNumberId || null,
     whatsapp_waba_id: v.wabaId || null,
     whatsapp_display_phone: v.displayPhone || null,
-    staff_phone_number: v.staffPhone || null,
   };
   const { error } = await ctx.admin
     .from("clinics")
@@ -134,7 +133,6 @@ export async function saveClinicWhatsapp(
       whatsapp_phone_number_id: "Phone Number ID",
       whatsapp_waba_id: "WABA",
       whatsapp_display_phone: "número exibido",
-      staff_phone_number: "WhatsApp da equipe",
     },
     before,
     after,
