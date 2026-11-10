@@ -174,7 +174,7 @@ export function buildSystemPrompt(
     /** Os dados pedidos no agendamento que esta pessoa já informou antes. */
     knownPatientFields?: string[];
     followUpEnabled?: boolean;
-    /** A ferramenta "encerrar_atendimento" está disponível. */
+    /** A assistente pode marcar o encerramento combinado com [[ENCERRAR]]. */
     closingEnabled?: boolean;
     /** Os próximos agendamentos já marcados desta pessoa, já escritos ("19/11 às 15:00 ..."). */
     upcomingAppointments?: string[];
@@ -248,7 +248,7 @@ export function buildSystemPrompt(
   }
   if (closingEnabled) {
     rules.push(
-      '- Quando o assunto da conversa estiver resolvido (agendamento confirmado, dúvida respondida, retorno combinado) e você não estiver esperando nenhuma resposta da pessoa, chame a ferramenta "encerrar_atendimento" e, na mesma mensagem, avise com naturalidade que, se for só isso, você encerra o atendimento em alguns minutos. Se depois disso a pessoa só agradecer ou se despedir, responda com uma despedida curta, sem repetir o que já foi confirmado, e chame "encerrar_atendimento" de novo.',
+      "- Quando o assunto da conversa estiver resolvido (agendamento confirmado, dúvida respondida, retorno combinado) e você não estiver esperando nenhuma resposta da pessoa, avise com naturalidade que, se for só isso, você encerra o atendimento em 10 minutos, e escreva [[ENCERRAR]] sozinho em uma linha ao final da resposta. Se depois disso a pessoa só agradecer ou se despedir, responda com uma despedida curta, sem repetir o que já foi confirmado, e escreva [[ENCERRAR]] de novo. Nunca escreva o nome de uma ferramenta na mensagem.",
     );
   }
   parts.push(rules.join("\n"));
@@ -384,6 +384,8 @@ export function firstReplyOnly(raw: string) {
  * existem na lista desta clínica, no máximo uma por resposta. Se vierem duas respostas grudadas,
  * fica só a primeira (a pedida de atendimento humano vale de qualquer uma delas).
  */
+const CLOSE_MARKER = /\[\[\s*(?:ENCERRAR|encerrar_atendimento)\s*\]\]/i;
+
 export function parseReply(raw: string, images: AssistantContext["images"]) {
   const needsHuman = /\[\[\s*ESCALAR\s*\]\]/i.test(raw);
   raw = firstReplyOnly(raw);
@@ -396,10 +398,13 @@ export function parseReply(raw: string, images: AssistantContext["images"]) {
     .slice(0, 1);
   // Só nos comentários do Instagram: não vale a pena responder no privado.
   const ignore = /\[\[\s*IGNORAR\s*\]\]/i.test(raw);
+  // Encerramento combinado (veja lib/ai/closing). Aceita também o nome antigo da ferramenta.
+  const close = CLOSE_MARKER.test(raw);
   const text = raw
     .replace(/\[\[\s*FOTO\s*:\s*\d*\s*\]?\]?/gi, "") // tira o marcador mesmo se vier pela metade
     .replace(/\[\[\s*ESCALAR\s*\]\]/gi, "")
     .replace(/\[\[\s*IGNORAR\s*\]\]/gi, "")
+    .replace(new RegExp(CLOSE_MARKER.source, "gi"), "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return {
@@ -407,5 +412,6 @@ export function parseReply(raw: string, images: AssistantContext["images"]) {
     images: chosen,
     needsHuman,
     ignore,
+    close,
   };
 }

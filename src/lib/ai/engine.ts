@@ -25,7 +25,7 @@ import {
   FOLLOW_UP_TOOL,
   type FollowUpMode,
 } from "./follow-up";
-import { callCloseTool, CLOSE_TOOL, type ClosingMode } from "./closing";
+import { callCloseTool, type ClosingMode } from "./closing";
 import { checkEvaluation } from "./evaluation";
 import { knownFieldNames, preparePatientData } from "./patient-data";
 import { buildSystemPrompt, parseReply, type AssistantContext } from "./prompt";
@@ -355,7 +355,6 @@ export async function generateReply({
   const tools: ToolDeclaration[] = [
     ...(agenda ? agendaTools(fields) : []),
     ...(followUp ? [FOLLOW_UP_TOOL] : []),
-    ...(closing ? [CLOSE_TOOL] : []),
   ];
   const messages: LlmMessage[] = history
     .filter((m) => m.text.trim())
@@ -384,11 +383,7 @@ export async function generateReply({
       const name = call.name;
       const args = { ...call.args };
       let result: AgendaResult;
-      if (name === CLOSE_TOOL.name) {
-        result = closing
-          ? await callCloseTool(closing)
-          : { erro: "Ferramenta indisponível." };
-      } else if (name === FOLLOW_UP_TOOL.name) {
+      if (name === FOLLOW_UP_TOOL.name) {
         result = followUp
           ? await callFollowUpTool(followUp, args)
           : { erro: "Ferramenta indisponível." };
@@ -444,7 +439,13 @@ export async function generateReply({
       "A IA não conseguiu concluir a resposta. Tente novamente.",
     );
   }
-  return { ...parseReply(raw, context.images), toolCalls };
+  const reply = parseReply(raw, context.images);
+  // A assistente avisou que encerra o atendimento: marca a conversa (o job encerra depois).
+  if (reply.close && closing) {
+    const result = await callCloseTool(closing);
+    toolCalls.push({ name: "encerrar_atendimento", args: {}, result });
+  }
+  return { ...reply, toolCalls };
 }
 
 export type Classification = {

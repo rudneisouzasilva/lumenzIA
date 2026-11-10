@@ -16,13 +16,7 @@ export const CLOSE_AFTER_MINUTES = 10;
 export type ClosingMode =
   { kind: "live"; conversationId: number } | { kind: "simulate" } | null;
 
-export const CLOSE_TOOL = {
-  name: "encerrar_atendimento",
-  description: `Marca o atendimento para ser encerrado em ${CLOSE_AFTER_MINUTES} minutos, caso a pessoa não escreva mais nada. Use SÓ quando o assunto da conversa estiver resolvido (agendamento confirmado, dúvida respondida, retorno combinado) e não houver nenhuma pergunta sua esperando resposta. Na mesma resposta, avise a pessoa com naturalidade, por exemplo: "Se for só isso, vou encerrar nosso atendimento em ${CLOSE_AFTER_MINUTES} minutos. Se precisar de algo, é só me chamar!". Se a pessoa responder depois, a conversa continua normalmente.`,
-  parametersJsonSchema: { type: "object", properties: {} },
-};
-
-/** Executa "encerrar_atendimento". Nunca lança erro: devolve { erro } para a IA explicar. */
+/** Marca a conversa para encerrar (a IA escreveu [[ENCERRAR]]). Nunca lança erro. */
 export async function callCloseTool(
   mode: NonNullable<ClosingMode>,
 ): Promise<Record<string, unknown>> {
