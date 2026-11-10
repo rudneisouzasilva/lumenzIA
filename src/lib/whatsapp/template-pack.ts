@@ -84,21 +84,19 @@ export const TEMPLATE_PACK: PackItem[] = [
   },
   {
     purpose: "aviso_equipe",
-    // A primeira versão (lumenzia_aviso_equipe) foi reclassificada como marketing pela Meta: o
-    // texto novo é só o aviso do atendimento, sem apresentação.
-    name: "lumenzia_alerta_atendimento",
-    previousNames: ["lumenzia_aviso_equipe"],
+    // As versões com dados do paciente foram para marketing: a Meta entende que o aviso fala de
+    // outra pessoa. Esta é um aviso da conta de quem recebe (a pessoa da equipe usa o painel),
+    // sem nenhum dado de paciente; só o assunto vai na variável.
+    name: "lumenzia_atualizacao_conta",
+    previousNames: ["lumenzia_aviso_equipe", "lumenzia_alerta_atendimento"],
     title: "Aviso para a equipe",
     description:
-      "Vai para o WhatsApp da equipe quando um paciente precisa de atendimento humano.",
+      "Vai para o WhatsApp da equipe quando um paciente precisa de atendimento humano (sem dados do paciente).",
     category: "UTILITY",
-    body: "Nova pendência no atendimento: {{1}}. Detalhes: {{2}}. Confira no painel de atendimento.",
+    body: "Atualização da sua conta: {{1}}. Abra o painel de atendimento para ver os detalhes e responder.",
     footer: "",
-    params: ["Paciente ou assunto", "Detalhes"],
-    example: () => [
-      "+55 41 99999-0000",
-      "Quero falar com uma pessoa da equipe",
-    ],
+    params: ["Assunto"],
+    example: () => ["Paciente pedindo atendimento"],
   },
 ];
 
