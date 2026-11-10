@@ -72,8 +72,9 @@ confirmação de e-mail foi desligada na etapa 4. Para religar:
       `LumenzIA <avisos@lumenzia.com.br>`. Nos lembretes, o nome que aparece é o da clínica.
       Plano grátis do Resend: 3.000 e-mails por mês, 100 por dia.
 - [ ] **Authentication → Rate Limits**: subir o limite de e-mails por hora (ex.: 100).
-- [ ] **Authentication → Emails → Templates**: traduzir para português “Confirm signup”, “Reset
-      password” e “Change email address” (os links `{{ .ConfirmationURL }}` continuam iguais).
+- [ ] **Authentication → Emails → Templates**: colar os modelos da LumenzIA (assunto e HTML) de
+      `supabase/templates/` em cada aba, como explica `supabase/templates/README.md`. Conferir em
+      **URL Configuration** que o Site URL é `https://lumenzia.com.br`.
 - [ ] **Authentication → Sign In / Providers → Email**: ligar **Confirm email**.
 - [ ] Testar: criar uma conta nova, receber o e-mail, confirmar e cair na assinatura; testar
       também “Esqueci a senha”.
