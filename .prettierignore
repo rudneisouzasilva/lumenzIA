@@ -2,3 +2,5 @@
 node_modules
 package-lock.json
 next-env.d.ts
+# Modelos de e-mail: HTML feito à mão para clientes de e-mail, não reformatar.
+supabase/templates/*.html
