@@ -157,6 +157,8 @@ export function buildSystemPrompt(
   {
     agendaEnabled,
     followUpEnabled = false,
+    closingEnabled = false,
+    upcomingAppointments = [],
     sentImageIds = [],
     previousSummaries = [],
     knownPatientFields = [],
@@ -172,6 +174,10 @@ export function buildSystemPrompt(
     /** Os dados pedidos no agendamento que esta pessoa já informou antes. */
     knownPatientFields?: string[];
     followUpEnabled?: boolean;
+    /** A ferramenta "encerrar_atendimento" está disponível. */
+    closingEnabled?: boolean;
+    /** Os próximos agendamentos já marcados desta pessoa, já escritos ("19/11 às 15:00 ..."). */
+    upcomingAppointments?: string[];
     sentImageIds?: string[];
     previousSummaries?: string[];
     now?: Date;
@@ -240,7 +246,19 @@ export function buildSystemPrompt(
       '- Se a pessoa disser que prefere conversar depois ("me chama mês que vem", "depois do pagamento eu vejo", "agora não, talvez em dezembro"), pergunte de forma leve se a clínica pode chamá-la nessa época e, se ela concordar ou já tiver pedido, chame a ferramenta "agendar_retorno" com o dia. Depois confirme com naturalidade que a clínica vai chamar nesse dia. Não use para agendamentos de procedimento.',
     );
   }
+  if (closingEnabled) {
+    rules.push(
+      '- Quando o assunto da conversa estiver resolvido (agendamento confirmado, dúvida respondida, retorno combinado) e você não estiver esperando nenhuma resposta da pessoa, chame a ferramenta "encerrar_atendimento" e, na mesma mensagem, avise com naturalidade que, se for só isso, você encerra o atendimento em alguns minutos. Se depois disso a pessoa só agradecer ou se despedir, responda com uma despedida curta, sem repetir o que já foi confirmado, e chame "encerrar_atendimento" de novo.',
+    );
+  }
   parts.push(rules.join("\n"));
+
+  if (upcomingAppointments.length) {
+    parts.push(
+      "AGENDAMENTOS JÁ MARCADOS DESTA PESSOA (já estão na agenda: NÃO chame criar_agendamento de novo para eles; só crie outro se a pessoa pedir um novo horário):\n" +
+        upcomingAppointments.map((a) => `- ${a}`).join("\n"),
+    );
+  }
 
   if (previousSummaries.length) {
     parts.push(

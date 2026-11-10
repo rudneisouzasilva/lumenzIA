@@ -54,6 +54,7 @@ export async function testAssistant(input: unknown): Promise<TestReply> {
       sentImageIds,
       agenda: integration?.enabled ? { kind: "simulate" } : null,
       followUp: { kind: "simulate" },
+      closing: { kind: "simulate" },
     });
     return {
       ok: true,

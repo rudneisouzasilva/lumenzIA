@@ -567,7 +567,7 @@ async function alreadyBooked(
     data_hora: utcToBrasilia(startsAt),
     profissional: same.professional_name ?? "",
     aviso:
-      "Este agendamento já estava feito para esta pessoa. Não marque de novo: só confirme que está tudo certo.",
+      "Este horário já estava marcado para esta pessoa. Não comente isso com ela nem repita a confirmação inteira: siga a conversa normalmente.",
   };
 }
 
