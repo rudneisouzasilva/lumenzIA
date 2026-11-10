@@ -3,11 +3,10 @@ import "server-only";
 import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 
-import { requireUser } from "@/lib/auth/user";
 import {
-  getClinicSubscriptions,
-  getMyClinic,
+  getMyClinicWithSubscriptions,
   pickActiveSubscription,
 } from "@/lib/billing/subscription";
 import { canAccess, type Area } from "@/lib/painel/areas";
@@ -17,29 +16,43 @@ import { createClient } from "@/lib/supabase/server";
  * Quem abre o painel: logado, ligado a uma clínica e com assinatura ativa. Sem assinatura, vai
  * para /assinatura. Memorizado por requisição (o layout e a página leem uma vez só). Lê cookies:
  * quem chama precisa estar dentro de um <Suspense>.
+ *
+ * Para abrir telas, confere o login com getClaims (valida a assinatura do token sem ir ao
+ * servidor de login quando o projeto usa chaves assimétricas) e lê clínica e assinatura numa
+ * consulta só. As ações que alteram dados (getActionContext) continuam com getUser.
  */
 export const getPanelContext = cache(async () => {
-  const { supabase, user } = await requireUser("/painel");
-  const clinic = await getMyClinic(supabase, user.id);
-  if (!clinic) {
+  // Sempre na hora do pedido: a sessão e as datas de validade dependem do relógio.
+  await connection();
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  const claims = auth?.claims;
+  if (!claims?.sub) redirect(`/entrar?next=${encodeURIComponent("/painel")}`);
+  const user = {
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : undefined,
+  };
+
+  const found = await getMyClinicWithSubscriptions(supabase, user.id);
+  if (!found) {
     // Conta só da equipe LumenzIA (sem clínica): o lugar dela é o painel da equipe.
     const { data: isAdmin } = await supabase.rpc("is_admin");
     redirect(isAdmin ? "/admin" : "/assinatura");
   }
 
-  const subscription = pickActiveSubscription(
-    await getClinicSubscriptions(supabase, clinic.id),
-  );
+  const subscription = pickActiveSubscription(found.subscriptions);
   if (!subscription) redirect("/assinatura");
 
-  return { supabase, user, clinic, subscription };
+  return { supabase, user, clinic: found.clinic, subscription };
 });
 
 type ActionContext =
   | {
       supabase: Awaited<ReturnType<typeof createClient>>;
       user: User;
-      clinic: NonNullable<Awaited<ReturnType<typeof getMyClinic>>>;
+      clinic: NonNullable<
+        Awaited<ReturnType<typeof getMyClinicWithSubscriptions>>
+      >["clinic"];
     }
   | { error: string };
 
@@ -57,8 +70,9 @@ export async function getActionContext(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sua sessão expirou. Entre de novo." };
 
-  const clinic = await getMyClinic(supabase, user.id);
-  if (!clinic) return { error: "Sua conta não está ligada a uma clínica." };
+  const found = await getMyClinicWithSubscriptions(supabase, user.id);
+  if (!found) return { error: "Sua conta não está ligada a uma clínica." };
+  const { clinic } = found;
   if (area === "owner" && clinic.role !== "owner") {
     return { error: "Só a dona da conta pode fazer isso." };
   }
@@ -67,10 +81,7 @@ export async function getActionContext(
     return { error: "Você não tem acesso a esta parte do painel." };
   }
 
-  const active = pickActiveSubscription(
-    await getClinicSubscriptions(supabase, clinic.id),
-  );
-  if (!active)
+  if (!pickActiveSubscription(found.subscriptions))
     return {
       error: "Sua assinatura não está ativa. Renove para continuar.",
     };

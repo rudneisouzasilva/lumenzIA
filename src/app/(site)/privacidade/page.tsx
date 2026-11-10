@@ -19,7 +19,9 @@ export default function PrivacyPage() {
       <h1 className="font-display text-4xl font-semibold tracking-tight">
         Política de Privacidade
       </h1>
-      <p className="!mt-3 text-sm">Última atualização: 19 de outubro de 2026</p>
+      <p className="!mt-3 text-sm">
+        Última atualização: 10 de novembro de 2026
+      </p>
 
       <p>
         Esta política explica como a {site.name} (&quot;nós&quot;) trata dados
@@ -189,12 +191,13 @@ export default function PrivacyPage() {
 
       <h2>6. Por quanto tempo guardamos</h2>
       <p>
-        Mantemos os dados da conta enquanto ela estiver ativa. Conversas e
-        configurações são guardadas enquanto a clínica utilizar o serviço e
-        podem ser excluídas a pedido. Dados de pagamento podem ser guardados
-        pelo prazo exigido por lei fiscal e contábil. O registro de agendamentos
-        usado nos indicadores, sem nome nem telefone, é apagado depois de 13
-        meses.
+        Mantemos os dados da conta enquanto ela estiver ativa. As conversas com
+        pacientes (mensagens e resumos) são apagadas automaticamente 2 anos
+        depois da última mensagem, ou antes, a pedido. As configurações da
+        clínica são guardadas enquanto ela utilizar o serviço e podem ser
+        excluídas a pedido. Dados de pagamento podem ser guardados pelo prazo
+        exigido por lei fiscal e contábil. O registro de agendamentos usado nos
+        indicadores, sem nome nem telefone, é apagado depois de 13 meses.
       </p>
 
       <h2>7. Seus direitos</h2>

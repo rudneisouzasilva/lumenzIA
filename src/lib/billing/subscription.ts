@@ -35,6 +35,37 @@ export async function getMyClinic(supabase: Client, userId: string) {
   };
 }
 
+/**
+ * A clínica da pessoa logada e as assinaturas dela, numa consulta só (getMyClinic seguido de
+ * getClinicSubscriptions custava duas idas ao banco em sequência a cada tela do painel).
+ */
+export async function getMyClinicWithSubscriptions(
+  supabase: Client,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("clinic_members")
+    .select(
+      "role, permissions, clinics(id, name, subscriptions(*, plans(code, name, message_quota)))",
+    )
+    .eq("user_id", userId)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.clinics) return null;
+  // Sem ordem: pickActiveSubscription escolhe pela validade.
+  return {
+    clinic: {
+      id: data.clinics.id,
+      name: data.clinics.name,
+      role: data.role,
+      access: toAccess(data.role, data.permissions),
+    },
+    subscriptions: data.clinics.subscriptions as SubscriptionRow[],
+  };
+}
+
 /** Assinaturas da clínica, da mais nova para a mais antiga (lidas pelo RLS). */
 export async function getClinicSubscriptions(
   supabase: Client,
