@@ -21,13 +21,16 @@ export function parseStaffChannels(raw: unknown): StaffChannel[] {
 
 export const MAX_STAFF_EMAIL = 254;
 
+/** Quantos WhatsApps da equipe a clínica pode cadastrar. */
+export const MAX_STAFF_PHONES = 5;
+
 /** O que a tela "Lembretes e avisos" salva (conferido de novo na Server Action). */
 export type NotificationSettings = {
   /** Quantas horas antes do horário o lembrete sai (0 = sem lembrete). */
   reminderHoursBefore: number;
   channels: StaffChannel[];
-  /** WhatsApp da equipe, como a pessoa digitou. */
-  phone: string;
+  /** WhatsApps da equipe (até MAX_STAFF_PHONES), como a pessoa digitou. */
+  phones: string[];
   email: string;
   reminderByEmail: boolean;
 };

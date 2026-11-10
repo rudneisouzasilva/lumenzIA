@@ -11,15 +11,6 @@ const metaId = z
   .trim()
   .regex(/^(\d{5,30})?$/, "Só números, como aparece no painel da Meta.");
 
-const phone = z
-  .string()
-  .trim()
-  .transform((v) => v.replace(/\D/g, ""))
-  .refine(
-    (v) => v === "" || (v.length >= 10 && v.length <= 15),
-    "Número com DDI e DDD, ex.: 5511999990000.",
-  );
-
 const secret = (max: number) =>
   z.string().trim().max(max, `Use no máximo ${max} caracteres.`);
 
@@ -27,7 +18,6 @@ export const whatsappTechSchema = z.object({
   phoneNumberId: metaId,
   wabaId: metaId,
   displayPhone: z.string().trim().max(40, "Use no máximo 40 caracteres."),
-  staffPhone: phone,
   token: secret(2000),
   removeToken: z.boolean(),
   /** Chave Secreta do app da própria clínica (conexão manual), para conferir o webhook. */

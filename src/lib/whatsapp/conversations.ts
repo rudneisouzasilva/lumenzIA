@@ -13,7 +13,7 @@ export type InboundClinic = {
   id: string;
   is_active: boolean;
   conversation_timeout_hours: number | null;
-  staff_phone_number: string | null;
+  staff_phone_numbers: string[];
   staff_alert_template_name: string | null;
   template_language: string;
 };
@@ -26,7 +26,7 @@ export async function clinicByPhoneNumberId(
   const { data } = await admin
     .from("clinics")
     .select(
-      "id, is_active, conversation_timeout_hours, staff_phone_number, staff_alert_template_name, template_language",
+      "id, is_active, conversation_timeout_hours, staff_phone_numbers, staff_alert_template_name, template_language",
     )
     .eq("whatsapp_phone_number_id", phoneNumberId)
     .maybeSingle()

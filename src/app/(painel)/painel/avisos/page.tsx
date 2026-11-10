@@ -33,7 +33,7 @@ async function Form() {
     supabase
       .from("clinics")
       .select(
-        "staff_alert_channels, staff_phone_number, staff_alert_email, reminder_by_email, booking_fields",
+        "staff_alert_channels, staff_phone_numbers, staff_alert_email, reminder_by_email, booking_fields",
       )
       .eq("id", clinic.id)
       .single(),
@@ -51,9 +51,7 @@ async function Form() {
         initial={{
           reminderHoursBefore: integration?.reminder_hours_before ?? 0,
           channels: parseStaffChannels(data.staff_alert_channels),
-          phone: data.staff_phone_number
-            ? formatPhone(data.staff_phone_number)
-            : "",
+          phones: data.staff_phone_numbers.map(formatPhone),
           email: data.staff_alert_email ?? "",
           reminderByEmail: data.reminder_by_email,
         }}

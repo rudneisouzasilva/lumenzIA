@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveNotificationSettings } from "@/app/(painel)/painel/avisos/actions";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   CHANNEL_LABELS,
+  MAX_STAFF_PHONES,
   STAFF_CHANNELS,
   type NotificationSettings,
   type StaffChannel,
@@ -21,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 const CHANNEL_HINTS: Record<StaffChannel, string> = {
   whatsapp:
-    "Mensagem pronta “Aviso para a equipe”, enviada pelo número da clínica. Conta como mensagem de utilidade na Meta.",
+    "Enviado pelo número da clínica. Sem custo se o número da equipe escreveu para a clínica nas últimas 24 horas; fora disso, usa a mensagem pronta “Aviso para a equipe”.",
   email: "Enviado pela LumenzIA, sem custo para a clínica.",
 };
 
@@ -83,6 +84,9 @@ export function NotificationSettingsForm({
   bookingAsksEmail: boolean;
 }) {
   const [values, setValues] = useState(initial);
+  // Sempre ao menos um campo para digitar.
+  const phones = values.phones.length ? values.phones : [""];
+  const setPhones = (list: string[]) => setValues({ ...values, phones: list });
   const [pending, startTransition] = useTransition();
   const dirty = JSON.stringify(values) !== JSON.stringify(initial);
   const remindersOn = values.reminderHoursBefore > 0;
@@ -217,18 +221,52 @@ export function NotificationSettingsForm({
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid content-start gap-1.5">
-            <Label htmlFor="staff-phone">WhatsApp da equipe</Label>
-            <Input
-              id="staff-phone"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="(11) 99999-0000"
-              maxLength={40}
-              value={values.phone}
-              onChange={(e) => setValues({ ...values, phone: e.target.value })}
-            />
+            <Label htmlFor="staff-phone-0">WhatsApp da equipe</Label>
+            {phones.map((phone, i) => (
+              <div key={i} className="flex gap-2">
+                <Input
+                  id={`staff-phone-${i}`}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="(11) 99999-0000"
+                  maxLength={40}
+                  value={phone}
+                  aria-label={`WhatsApp da equipe ${i + 1}`}
+                  onChange={(e) =>
+                    setPhones(
+                      phones.map((p, j) => (j === i ? e.target.value : p)),
+                    )
+                  }
+                />
+                {phones.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remover o número ${i + 1}`}
+                    onClick={() => setPhones(phones.filter((_, j) => j !== i))}
+                  >
+                    <X />
+                  </Button>
+                )}
+              </div>
+            ))}
+            {phones.length < MAX_STAFF_PHONES && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-self-start"
+                onClick={() => setPhones([...phones, ""])}
+              >
+                <Plus />
+                Adicionar número
+              </Button>
+            )}
             <p className="text-xs text-muted-foreground">
-              Um número diferente do que a assistente usa.
+              Até {MAX_STAFF_PHONES} números, diferentes do que a assistente
+              usa. Todos recebem os avisos, e a assistente não responde
+              mensagens que chegam deles.
             </p>
           </div>
           <div className="grid content-start gap-1.5">
