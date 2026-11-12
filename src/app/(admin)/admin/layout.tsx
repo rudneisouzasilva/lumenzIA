@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AdminShell, ClinicPanelLink } from "@/components/admin/shell";
 import { createClient } from "@/lib/supabase/server";
@@ -26,6 +27,8 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
 
 /** Só mostra "Painel da clínica" quando o login da equipe também participa de uma clínica. */
 async function ClinicLinkIfMember() {
+  // Só na hora do pedido: no build não há sessão (nem, no CI, as variáveis do Supabase).
+  await connection();
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims.sub;
