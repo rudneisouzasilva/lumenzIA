@@ -13,6 +13,9 @@ import {
 } from "@/lib/admin/validation";
 import type { FormResult } from "@/lib/auth/validation";
 import { isSubscriptionActive } from "@/lib/billing/active";
+import { getPaymentMode } from "@/lib/billing/config";
+import { cancelPreapproval } from "@/lib/billing/mercadopago";
+import { IMAGES_BUCKET } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { disconnectWhatsapp } from "@/lib/whatsapp/embedded-signup";
@@ -475,4 +478,150 @@ export async function endGrant(subscriptionId: unknown): Promise<FormResult> {
   }
   refresh();
   return { ok: true };
+}
+
+/**
+ * Exclui a clínica de vez (contas de teste ou pedido de exclusão de dados). Apagar a linha da
+ * clínica leva junto, pelo banco, conversas, contatos, funil, agenda, assinaturas e os segredos do
+ * Vault. Antes disso: para a cobrança no Mercado Pago, solta o número do WhatsApp e apaga as fotos.
+ * Depois, apaga os logins de quem só estava nesta clínica. Admins nunca são apagados.
+ */
+export async function deleteClinic(
+  clinicId: unknown,
+  confirmName: unknown,
+): Promise<FormResult> {
+  const ctx = await start(clinicId);
+  if ("error" in ctx) return fail(ctx.error);
+  const { admin, clinicId: id } = ctx;
+
+  const [clinicRes, membersRes, subsRes] = await Promise.all([
+    admin
+      .from("clinics")
+      .select("name, whatsapp_phone_number_id")
+      .eq("id", id)
+      .maybeSingle(),
+    admin
+      .from("clinic_members")
+      .select("user_id, profiles(is_admin)")
+      .eq("clinic_id", id),
+    admin
+      .from("subscriptions")
+      .select("mp_preapproval_id, status, is_grant")
+      .eq("clinic_id", id),
+  ]);
+  for (const r of [clinicRes, membersRes, subsRes]) {
+    if (r.error) return saveError("ler clínica para excluir", r.error.message);
+  }
+  const clinic = clinicRes.data;
+  if (!clinic) return fail("Clínica não encontrada.");
+  if (
+    typeof confirmName !== "string" ||
+    confirmName.trim() !== clinic.name.trim()
+  ) {
+    return fail("Digite o nome da clínica exatamente como aparece.");
+  }
+
+  // 1. Cobrança: sem conseguir cancelar no Mercado Pago, não apaga (senão a cobrança continuaria
+  //    sem a clínica existir aqui).
+  const toCancel = (subsRes.data ?? []).filter(
+    (s) => !s.is_grant && s.mp_preapproval_id && s.status !== "cancelled",
+  );
+  if (toCancel.length > 0) {
+    let mode: ReturnType<typeof getPaymentMode>;
+    try {
+      mode = getPaymentMode();
+    } catch (e) {
+      return saveError("modo de pagamento", (e as Error).message);
+    }
+    if (mode === "mercadopago") {
+      for (const s of toCancel) {
+        try {
+          await cancelPreapproval(s.mp_preapproval_id!);
+        } catch (e) {
+          console.error("[admin] cancelar assinatura:", (e as Error).message);
+          return fail(
+            "Não consegui cancelar a assinatura no Mercado Pago. Nada foi apagado. Tente de novo.",
+          );
+        }
+      }
+    }
+  }
+
+  // 2. WhatsApp: tira a inscrição da LumenzIA na conta da Meta (falha aqui não impede excluir).
+  if (clinic.whatsapp_phone_number_id) {
+    try {
+      await disconnectWhatsapp(id, {
+        userId: ctx.userId,
+        reason: "Clínica excluída pela equipe LumenzIA",
+      });
+    } catch (e) {
+      console.error("[admin] excluir: whatsapp:", (e as Error).message);
+    }
+  }
+
+  // 3. Fotos da pasta {clinic_id}/ no Storage.
+  const bucket = admin.storage.from(IMAGES_BUCKET);
+  for (;;) {
+    const { data: files, error } = await bucket.list(id, { limit: 1000 });
+    if (error) return saveError("listar fotos", error.message);
+    if (!files?.length) break;
+    const { error: rmError } = await bucket.remove(
+      files.map((f) => `${id}/${f.name}`),
+    );
+    if (rmError) return saveError("apagar fotos", rmError.message);
+    if (files.length < 1000) break;
+  }
+
+  // 4. A clínica (o resto vai junto por "on delete cascade").
+  const { error: delError } = await admin.from("clinics").delete().eq("id", id);
+  if (delError) return saveError("excluir clínica", delError.message);
+
+  // 5. Logins de quem não é admin e não participa de outra clínica.
+  const candidates = (membersRes.data ?? [])
+    .filter((m) => !m.profiles?.is_admin && m.user_id !== ctx.userId)
+    .map((m) => m.user_id);
+  let removed = 0;
+  let kept = 0;
+  let failed = 0;
+  if (candidates.length > 0) {
+    const { data: still, error } = await admin
+      .from("clinic_members")
+      .select("user_id")
+      .in("user_id", candidates);
+    if (error) console.error("[admin] excluir: membros:", error.message);
+    const elsewhere = new Set((still ?? []).map((m) => m.user_id));
+    for (const userId of candidates) {
+      if (error || elsewhere.has(userId)) {
+        kept++;
+        continue;
+      }
+      const { error: authError } = await admin.auth.admin.deleteUser(userId);
+      if (authError) {
+        console.error("[admin] excluir login:", authError.message);
+        failed++;
+      } else removed++;
+    }
+  }
+
+  const people = [
+    `${removed} ${removed === 1 ? "login apagado" : "logins apagados"}`,
+    kept > 0 && `${kept} mantido(s) por estar em outra clínica`,
+    failed > 0 && `${failed} não apagado(s) por erro`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  await audit(
+    admin,
+    ctx.userId,
+    null,
+    "clinica.excluida",
+    `Clínica “${clinic.name}” (${id}) excluída com todos os dados; ${people}.`,
+  );
+
+  return failed > 0
+    ? {
+        ok: true,
+        message: `Clínica excluída, mas ${failed} login(s) não puderam ser apagados. Veja em Authentication no Supabase.`,
+      }
+    : { ok: true, message: `Clínica excluída; ${people}.` };
 }

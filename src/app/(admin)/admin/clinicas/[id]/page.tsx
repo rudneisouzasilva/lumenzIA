@@ -11,6 +11,7 @@ import {
   AdminDisconnectButton,
   AgendaForm,
   ClinicTabs,
+  DeleteClinicButton,
   TemplatesForm,
   WhatsappTechForm,
 } from "@/components/admin/clinic-forms";
@@ -69,6 +70,7 @@ async function Clinic({
     auditRes,
     secretsRes,
     convRes,
+    elsewhereRes,
   ] = await Promise.all([
     supabase.from("clinics").select("*").eq("id", id).maybeSingle(),
     supabase.from("integrations").select("*").eq("clinic_id", id).maybeSingle(),
@@ -92,6 +94,8 @@ async function Clinic({
       .select("id", { count: "exact", head: true })
       .eq("clinic_id", id)
       .gte("started_at", daysAgo(30)),
+    // Quem também está em outra clínica (o login não é apagado ao excluir esta).
+    supabase.from("clinic_members").select("user_id").neq("clinic_id", id),
   ]);
   for (const r of [
     clinicRes,
@@ -100,6 +104,7 @@ async function Clinic({
     subsRes,
     auditRes,
     secretsRes,
+    elsewhereRes,
   ]) {
     if (r.error) throw new Error(r.error.message);
   }
@@ -114,6 +119,7 @@ async function Clinic({
   const active = pickActiveSubscription(subs as SubscriptionRow[]);
   const current = active ? subs.find((s) => s.id === active.id)! : subs[0];
   const connected = Boolean(clinic.whatsapp_phone_number_id);
+  const inOtherClinic = new Set(elsewhereRes.data!.map((m) => m.user_id));
 
   const overview = (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -239,6 +245,24 @@ async function Clinic({
             </li>
           ))}
         </ul>
+      </PanelCard>
+
+      <PanelCard title="Excluir clínica" className="lg:col-span-2">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="max-w-prose text-sm text-muted-foreground">
+            Para contas de teste ou pedido de exclusão de dados. Apaga a
+            clínica, todos os dados dela e o login de quem só está nela. Admins
+            da LumenzIA nunca são apagados.
+          </p>
+          <DeleteClinicButton
+            clinicId={clinic.id}
+            clinicName={clinic.name}
+            people={membersRes.data!.map((m) => ({
+              email: m.email,
+              keeps: m.is_admin || inOtherClinic.has(m.user_id),
+            }))}
+          />
+        </div>
       </PanelCard>
     </div>
   );

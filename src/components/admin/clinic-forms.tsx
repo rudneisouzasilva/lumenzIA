@@ -9,13 +9,16 @@ import {
   Loader2,
   ScrollText,
   Smartphone,
+  Trash2,
   Unplug,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
   activateClinicWhatsapp,
   adminDisconnectWhatsapp,
+  deleteClinic,
   saveClinicAgenda,
   saveClinicTemplates,
   saveClinicWhatsapp,
@@ -35,6 +38,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -564,6 +568,101 @@ export function AdminDisconnectButton({ clinicId }: { clinicId: string }) {
             >
               {pending && <Loader2 className="animate-spin" />}
               Desconectar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * Exclusão definitiva da clínica. Pede o nome digitado para não apagar a clínica errada por um
+ * clique; quem será apagado vem da página (admins e quem está em outra clínica ficam).
+ */
+export function DeleteClinicButton({
+  clinicId,
+  clinicName,
+  people,
+}: {
+  clinicId: string;
+  clinicName: string;
+  people: { email: string; keeps: boolean }[];
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [pending, startTransition] = useTransition();
+  const matches = typed.trim() === clinicName.trim();
+  return (
+    <>
+      <Button
+        variant="outline"
+        className="text-destructive hover:text-destructive"
+        onClick={() => {
+          setTyped("");
+          setOpen(true);
+        }}
+      >
+        <Trash2 />
+        Excluir clínica
+      </Button>
+      <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
+        <DialogContent>
+          <DialogTitle>Excluir “{clinicName}” de vez?</DialogTitle>
+          <DialogDescription>
+            Apaga a clínica e tudo dela: conversas, contatos, funil, agenda,
+            fotos, assinaturas e os tokens guardados. Se houver assinatura no
+            Mercado Pago, ela é cancelada antes. Não dá para desfazer.
+          </DialogDescription>
+          {people.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {people.map((p) => (
+                <li key={p.email} className="flex justify-between gap-3">
+                  <span className="truncate">{p.email}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {p.keeps ? "login fica" : "login apagado"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="confirm-clinic-name">
+              Para confirmar, digite o nome da clínica
+            </Label>
+            <Input
+              id="confirm-clinic-name"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={clinicName}
+              autoComplete="off"
+            />
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <DialogClose asChild>
+              <Button variant="outline" disabled={pending}>
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              disabled={!matches || pending}
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await deleteClinic(clinicId, typed);
+                  if (!result.ok) {
+                    toast.error(result.error);
+                    return;
+                  }
+                  setOpen(false);
+                  toast.success(result.message ?? "Clínica excluída.");
+                  router.replace("/admin");
+                })
+              }
+            >
+              {pending && <Loader2 className="animate-spin" />}
+              Excluir de vez
             </Button>
           </div>
         </DialogContent>
