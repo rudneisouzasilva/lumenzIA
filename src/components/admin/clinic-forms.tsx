@@ -608,7 +608,9 @@ export function DeleteClinicButton({
         Excluir clínica
       </Button>
       <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
-        <DialogContent>
+        {/* Depois de excluir, a página muda e o botão some: não joga o foco (e o contorno) no
+            primeiro botão do topo. */}
+        <DialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogTitle>Excluir “{clinicName}” de vez?</DialogTitle>
           <DialogDescription>
             Apaga a clínica e tudo dela: conversas, contatos, funil, agenda,
