@@ -14,7 +14,7 @@ import {
 import type { FormResult } from "@/lib/auth/validation";
 import { isSubscriptionActive } from "@/lib/billing/active";
 import { getPaymentMode } from "@/lib/billing/config";
-import { cancelPreapproval } from "@/lib/billing/mercadopago";
+import { cancelPreapproval, getPreapproval } from "@/lib/billing/mercadopago";
 import { IMAGES_BUCKET } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
@@ -481,6 +481,33 @@ export async function endGrant(subscriptionId: unknown): Promise<FormResult> {
 }
 
 /**
+ * Garante que a assinatura no Mercado Pago não cobra mais. Devolve o motivo para não excluir, ou
+ * null quando pode seguir: cancelada agora, já cancelada, ainda "pending" (o checkout nunca foi
+ * concluído, então não há cartão para cobrar e o Mercado Pago costuma recusar cancelar) ou
+ * inexistente nesta conta do Mercado Pago (criada com outra credencial, como a de teste).
+ */
+async function stopMpCharges(preapprovalId: string): Promise<string | null> {
+  try {
+    await cancelPreapproval(preapprovalId);
+    return null;
+  } catch (e) {
+    console.error("[admin] cancelar assinatura:", (e as Error).message);
+  }
+  try {
+    const current = await getPreapproval(preapprovalId);
+    if (current.status === "cancelled" || current.status === "pending") {
+      return null;
+    }
+    return `A assinatura ${preapprovalId} está "${current.status}" no Mercado Pago e não consegui cancelar. Cancele por lá e tente de novo. Nada foi apagado.`;
+  } catch (e) {
+    const message = (e as Error).message;
+    console.error("[admin] consultar assinatura:", message);
+    if (/^Mercado Pago 404\b/.test(message)) return null;
+    return `Não consegui falar com o Mercado Pago sobre a assinatura ${preapprovalId} (${message.slice(0, 120)}). Nada foi apagado.`;
+  }
+}
+
+/**
  * Exclui a clínica de vez (contas de teste ou pedido de exclusão de dados). Apagar a linha da
  * clínica leva junto, pelo banco, conversas, contatos, funil, agenda, assinaturas e os segredos do
  * Vault. Antes disso: para a cobrança no Mercado Pago, solta o número do WhatsApp e apaga as fotos.
@@ -535,14 +562,8 @@ export async function deleteClinic(
     }
     if (mode === "mercadopago") {
       for (const s of toCancel) {
-        try {
-          await cancelPreapproval(s.mp_preapproval_id!);
-        } catch (e) {
-          console.error("[admin] cancelar assinatura:", (e as Error).message);
-          return fail(
-            "Não consegui cancelar a assinatura no Mercado Pago. Nada foi apagado. Tente de novo.",
-          );
-        }
+        const blocker = await stopMpCharges(s.mp_preapproval_id!);
+        if (blocker) return fail(blocker);
       }
     }
   }

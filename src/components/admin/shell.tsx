@@ -34,7 +34,14 @@ function isActive(pathname: string, href: string) {
 }
 
 /** Moldura do painel da equipe LumenzIA: abas no topo, sem a barra lateral da clínica. */
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({
+  children,
+  clinicLink,
+}: {
+  children: React.ReactNode;
+  /** Atalho para o painel da clínica; só aparece para quem da equipe também tem uma clínica. */
+  clinicLink?: React.ReactNode;
+}) {
   return (
     <div className="flex min-h-svh min-w-0 flex-1 flex-col overflow-x-clip">
       <header className="sticky top-0 z-30 border-b bg-background/75 backdrop-blur-xl">
@@ -53,12 +60,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             Equipe
           </span>
           <div className="ml-auto flex items-center gap-1">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/painel">
-                <ArrowLeft />
-                <span className="hidden sm:inline">Painel da clínica</span>
-              </Link>
-            </Button>
+            {clinicLink}
             <ThemeToggle />
             <form action={signOut}>
               <Button
@@ -124,5 +126,16 @@ function AdminNav({ pathname }: { pathname: string }) {
         );
       })}
     </nav>
+  );
+}
+
+export function ClinicPanelLink() {
+  return (
+    <Button asChild variant="ghost" size="sm">
+      <Link href="/painel">
+        <ArrowLeft />
+        <span className="hidden sm:inline">Painel da clínica</span>
+      </Link>
+    </Button>
   );
 }
