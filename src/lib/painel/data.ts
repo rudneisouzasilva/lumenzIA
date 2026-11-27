@@ -25,7 +25,7 @@ export async function getClinicSettings() {
   const { data, error } = await supabase
     .from("clinics")
     .select(
-      "name, assistant_name, tone, business_info, past_conversations, behavior_rules, is_active, conversation_timeout_hours, work_days, work_hours_start, work_hours_end, works_on_holidays, extra_closed_dates, whatsapp_phone_number_id",
+      "name, assistant_name, tone, business_info, past_conversations, behavior_rules, is_active, whatsapp_ai_active, instagram_ai_active, conversation_timeout_hours, work_days, work_hours_start, work_hours_end, works_on_holidays, extra_closed_dates, whatsapp_phone_number_id",
     )
     .eq("id", clinic.id)
     .single();

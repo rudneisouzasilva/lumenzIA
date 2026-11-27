@@ -151,7 +151,7 @@ export function TestChat({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <div className="overflow-hidden rounded-2xl border bg-[#efeae2] shadow-sm dark:bg-[#0b141a]">
+      <div className="self-start overflow-hidden rounded-2xl border bg-[#efeae2] shadow-sm dark:bg-[#0b141a]">
         <div className="flex items-center gap-3 bg-[#075e54] px-4 py-3 text-white dark:bg-[#202c33]">
           <div className="grid size-10 place-items-center rounded-full bg-white/20 font-semibold">
             {assistantName.trim().charAt(0).toUpperCase() || "A"}

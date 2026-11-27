@@ -69,6 +69,8 @@ async function updateClinic(
     works_on_holidays?: boolean;
     extra_closed_dates?: string;
     is_active?: boolean;
+    whatsapp_ai_active?: boolean;
+    instagram_ai_active?: boolean;
   },
   existing?: ActionContext,
 ): Promise<FormResult> {
@@ -124,20 +126,28 @@ export async function savePastConversations(input: unknown) {
   });
 }
 
-/** Liga ou desliga a assistente no WhatsApp (só depois que o número foi conectado). */
+/** Liga ou desliga a assistente em todos os canais (só depois que algum canal foi conectado). */
 export async function setAssistantActive(active: boolean): Promise<FormResult> {
   const ctx = await getActionContext(["assistente", "whatsapp"]);
   if ("error" in ctx) return fail(ctx.error);
 
   if (active) {
-    const { data } = await ctx.supabase
-      .from("clinics")
-      .select("whatsapp_phone_number_id")
-      .eq("id", ctx.clinic.id)
-      .single();
-    if (!data?.whatsapp_phone_number_id) {
+    const [{ data }, { data: instagram }] = await Promise.all([
+      ctx.supabase
+        .from("clinics")
+        .select("whatsapp_phone_number_id")
+        .eq("id", ctx.clinic.id)
+        .single(),
+      ctx.supabase
+        .from("instagram_accounts")
+        .select("clinic_id")
+        .eq("clinic_id", ctx.clinic.id)
+        .eq("status", "ativo")
+        .maybeSingle(),
+    ]);
+    if (!data?.whatsapp_phone_number_id && !instagram) {
       return fail(
-        "Conecte o WhatsApp da clínica antes de ligar a assistente (menu WhatsApp).",
+        "Conecte o WhatsApp ou o Instagram da clínica antes de ligar a assistente.",
       );
     }
   }
@@ -145,6 +155,24 @@ export async function setAssistantActive(active: boolean): Promise<FormResult> {
     "assistente",
     "ligar assistente",
     { is_active: Boolean(active) },
+    ctx,
+  );
+}
+
+/** Pausa ou religa a assistente só em um canal; o botão geral continua valendo para os dois. */
+export async function setChannelAssistant(
+  channel: unknown,
+  active: boolean,
+): Promise<FormResult> {
+  if (channel !== "whatsapp" && channel !== "instagram") return invalid();
+  const ctx = await getActionContext(["assistente", "whatsapp"]);
+  if ("error" in ctx) return fail(ctx.error);
+  return updateClinic(
+    "assistente",
+    `assistente no ${channel === "whatsapp" ? "WhatsApp" : "Instagram"}`,
+    channel === "whatsapp"
+      ? { whatsapp_ai_active: Boolean(active) }
+      : { instagram_ai_active: Boolean(active) },
     ctx,
   );
 }
