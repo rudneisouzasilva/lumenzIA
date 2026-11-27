@@ -155,3 +155,46 @@ export async function fetchProfile(sender: InstagramSender, igsid: string) {
     { token: sender.accessToken, query: { fields: "username,name" } },
   );
 }
+
+/**
+ * Texto público da conta conectada (nome, bio, site e as legendas dos posts recentes), para o
+ * "Preencher com IA". Usa só a permissão básica; o que não vier fica de fora.
+ */
+export async function fetchAccountText(sender: InstagramSender, posts = 30) {
+  type Me = {
+    username?: string;
+    name?: string;
+    biography?: string;
+    website?: string;
+  };
+  type Media = { data?: { caption?: string }[] };
+  const [me, media] = await Promise.all([
+    instagramApi<Me>("me", {
+      token: sender.accessToken,
+      query: { fields: "username,name,biography,website" },
+    }).catch(() =>
+      // Algumas contas não devolvem bio/site: tenta só o básico.
+      instagramApi<Me>("me", {
+        token: sender.accessToken,
+        query: { fields: "username,name" },
+      }),
+    ),
+    instagramApi<Media>("me/media", {
+      token: sender.accessToken,
+      query: { fields: "caption", limit: String(posts) },
+    }).catch(() => ({ data: [] }) as Media),
+  ]);
+  const captions = (media.data ?? [])
+    .map((m) => m.caption?.trim())
+    .filter((c): c is string => Boolean(c));
+  const lines: string[] = [];
+  if (me.name) lines.push(`Nome: ${me.name}`);
+  if (me.username) lines.push(`Instagram: @${me.username}`);
+  if (me.biography) lines.push(`Bio: ${me.biography}`);
+  if (me.website) lines.push(`Site: ${me.website}`);
+  if (captions.length) {
+    lines.push("", "Legendas dos posts recentes:");
+    for (const c of captions) lines.push("---", c);
+  }
+  return lines.join("\n");
+}

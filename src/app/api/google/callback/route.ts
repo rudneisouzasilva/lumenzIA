@@ -27,19 +27,17 @@ export async function GET(request: NextRequest) {
   const code = params.get("code");
   if (!code) return back("erro");
 
-  // Quem voltou do Google é quem começou, e continua na clínica.
+  // Quem voltou do Google é quem começou, e continua na clínica com acesso à Agenda.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user || user.id !== state.userId) return back("erro");
-  const { data: member } = await supabase
-    .from("clinic_members")
-    .select("user_id")
-    .eq("clinic_id", state.clinicId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!member) return back("erro");
+  const { data: canAgenda } = await supabase.rpc("member_can", {
+    p_clinic_id: state.clinicId,
+    p_area: "agenda",
+  });
+  if (!canAgenda) return back("erro");
 
   try {
     const tokens = await exchangeCode(code, redirectUri(appUrl));

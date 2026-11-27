@@ -17,6 +17,7 @@ import {
   MessagesSquare,
   Rocket,
   Smartphone,
+  Sparkles,
 } from "lucide-react";
 
 import { AssistantToggle } from "@/components/painel/assistant-toggle";
@@ -275,7 +276,12 @@ async function Overview() {
     <div className="space-y-6">
       {!setupComplete && (
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-          <SetupCard steps={steps} done={done} percent={percent} />
+          <SetupCard
+            steps={steps}
+            done={done}
+            percent={percent}
+            owner={clinic.role === "owner"}
+          />
           {connections}
         </div>
       )}
@@ -430,10 +436,12 @@ function SetupCard({
   steps,
   done,
   percent,
+  owner,
 }: {
   steps: Step[];
   done: number;
   percent: number;
+  owner: boolean;
 }) {
   return (
     <PanelCard>
@@ -475,16 +483,26 @@ function SetupCard({
         ))}
       </ul>
       {/* O passo a passo guiado não fica no menu: aparece aqui enquanto falta configurar. */}
-      <Button
-        asChild
-        variant={done < 3 ? "default" : "outline"}
-        className="mt-5 w-full sm:w-auto"
-      >
-        <Link href="/painel/comecar">
-          <Rocket />
-          Fazer o passo a passo guiado
-        </Link>
-      </Button>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Button
+          asChild
+          variant={done < 3 ? "default" : "outline"}
+          className="w-full sm:w-auto"
+        >
+          <Link href="/painel/comecar">
+            <Rocket />
+            Fazer o passo a passo guiado
+          </Link>
+        </Button>
+        {owner && (
+          <Button asChild variant="outline" className="w-full sm:w-auto">
+            <Link href="/painel/preencher">
+              <Sparkles />
+              Preencher com IA
+            </Link>
+          </Button>
+        )}
+      </div>
     </PanelCard>
   );
 }
