@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
 import { getAppUrl } from "@/lib/app-url";
 import type { FormResult } from "@/lib/auth/validation";
@@ -9,6 +10,7 @@ import { requireUser } from "@/lib/auth/user";
 import { getPaymentMode } from "@/lib/billing/config";
 import {
   cancelPreapproval,
+  cardErrorMessage,
   createPreapproval,
 } from "@/lib/billing/mercadopago";
 import {
@@ -33,13 +35,10 @@ async function requireOwner() {
   return { supabase, user, clinic };
 }
 
-/**
- * Cria a assinatura (pendente) e manda para o pagamento: no modo de teste, para a nossa página de
- * confirmação; no Mercado Pago, para a página onde a pessoa autoriza a cobrança mensal.
- */
-export async function startCheckout(planCode: string): Promise<FormResult> {
+/** Confere que dá para assinar e cria a assinatura pendente do plano escolhido. */
+async function createPendingSubscription(planCode: string) {
   const ctx = await requireOwner();
-  if ("error" in ctx) return ctx.error!;
+  if ("error" in ctx) return { error: ctx.error! };
   const { supabase, user, clinic } = ctx;
 
   let mode;
@@ -47,14 +46,16 @@ export async function startCheckout(planCode: string): Promise<FormResult> {
     mode = getPaymentMode();
   } catch (e) {
     console.error("[assinatura]", (e as Error).message);
-    return fail("A cobrança não está configurada. Fale com o suporte.");
+    return {
+      error: fail("A cobrança não está configurada. Fale com o suporte."),
+    };
   }
 
   // Durante um acesso liberado pela equipe dá para assinar: os dias que faltavam passam para o
   // plano pago quando o primeiro pagamento é aprovado.
   const subs = await getClinicSubscriptions(supabase, clinic.id);
   if (pickActiveSubscription(subs.filter((s) => !s.is_grant))) {
-    return fail("Sua clínica já tem uma assinatura ativa.");
+    return { error: fail("Sua clínica já tem uma assinatura ativa.") };
   }
 
   const { data: plan } = await supabase
@@ -63,7 +64,7 @@ export async function startCheckout(planCode: string): Promise<FormResult> {
     .eq("code", planCode)
     .eq("active", true)
     .maybeSingle();
-  if (!plan) return fail("Plano não encontrado.");
+  if (!plan) return { error: fail("Plano não encontrado.") };
 
   const admin = createAdminClient();
   const { data: sub, error } = await admin
@@ -73,16 +74,34 @@ export async function startCheckout(planCode: string): Promise<FormResult> {
     .single();
   if (error) {
     console.error("[assinatura] criar:", error.message);
-    return fail("Não foi possível iniciar a assinatura. Tente de novo.");
+    return {
+      error: fail("Não foi possível iniciar a assinatura. Tente de novo."),
+    };
   }
+  return {
+    mode,
+    user,
+    plan,
+    admin,
+    subscriptionId: sub.id,
+    returnPath: `/pagamento?assinatura=${sub.id}`,
+  };
+}
 
-  const returnPath = `/pagamento?assinatura=${sub.id}`;
+/**
+ * Cria a assinatura (pendente) e manda para o pagamento: no modo de teste, para a nossa página de
+ * confirmação; no Mercado Pago, para a página onde a pessoa autoriza a cobrança mensal.
+ */
+export async function startCheckout(planCode: string): Promise<FormResult> {
+  const ctx = await createPendingSubscription(planCode);
+  if ("error" in ctx) return ctx.error!;
+  const { mode, user, plan, admin, subscriptionId, returnPath } = ctx;
   if (mode === "mock") redirect(returnPath);
 
   let initPoint: string;
   try {
     const preapproval = await createPreapproval({
-      subscriptionId: sub.id,
+      subscriptionId,
       planName: plan.name,
       priceCents: plan.price_cents,
       payerEmail: user.email!,
@@ -91,7 +110,7 @@ export async function startCheckout(planCode: string): Promise<FormResult> {
     await admin
       .from("subscriptions")
       .update({ mp_preapproval_id: preapproval.id })
-      .eq("id", sub.id)
+      .eq("id", subscriptionId)
       .throwOnError();
     initPoint = preapproval.initPoint;
   } catch (e) {
@@ -101,6 +120,58 @@ export async function startCheckout(planCode: string): Promise<FormResult> {
     );
   }
   redirect(initPoint);
+}
+
+const cardSchema = z.object({
+  planCode: z.string().min(1).max(64),
+  token: z.string().trim().min(8).max(200),
+  email: z.email("Informe um e-mail válido.").max(254),
+});
+
+/**
+ * Assina com o cartão digitado na LumenzIA (formulário seguro do Mercado Pago: o número do
+ * cartão nunca passa pelo nosso servidor, só um token de uso único). Não exige conta no Mercado
+ * Pago. A assinatura já nasce autorizada; o acesso é liberado quando a primeira cobrança é
+ * aprovada, pelo webhook.
+ */
+export async function subscribeWithCard(input: unknown): Promise<FormResult> {
+  const parsed = cardSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(
+      parsed.error.issues[0]?.message ?? "Confira os dados do cartão.",
+    );
+  }
+  const v = parsed.data;
+  const ctx = await createPendingSubscription(v.planCode);
+  if ("error" in ctx) return ctx.error!;
+  const { mode, plan, admin, subscriptionId, returnPath } = ctx;
+  if (mode !== "mercadopago") redirect(returnPath);
+
+  try {
+    const preapproval = await createPreapproval({
+      subscriptionId,
+      planName: plan.name,
+      priceCents: plan.price_cents,
+      payerEmail: v.email,
+      backUrl: `${await getAppUrl()}${returnPath}`,
+      cardTokenId: v.token,
+    });
+    await admin
+      .from("subscriptions")
+      .update({ mp_preapproval_id: preapproval.id, status: "authorized" })
+      .eq("id", subscriptionId)
+      .throwOnError();
+  } catch (e) {
+    console.error("[assinatura] cartão:", (e as Error).message);
+    // A tentativa não vira assinatura: some da lista para não ficar uma pendente sem dono.
+    await admin
+      .from("subscriptions")
+      .update({ status: "cancelled" })
+      .eq("id", subscriptionId)
+      .is("mp_preapproval_id", null);
+    return fail(cardErrorMessage(e));
+  }
+  redirect(returnPath);
 }
 
 /** Modo de teste: aprova a primeira cobrança sem cobrar nada. */

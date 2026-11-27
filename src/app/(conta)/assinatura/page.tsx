@@ -12,7 +12,11 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/user";
-import { getPaymentMode, type PaymentMode } from "@/lib/billing/config";
+import {
+  getMpPublicKey,
+  getPaymentMode,
+  type PaymentMode,
+} from "@/lib/billing/config";
 import {
   findRecentPending,
   getClinicSubscriptions,
@@ -135,6 +139,8 @@ async function SubscriptionView({
             plans={plans}
             initialCode={planParam}
             testMode={mode === "mock"}
+            cardPublicKey={mode === "mercadopago" ? getMpPublicKey() : null}
+            payerEmail={user.email ?? ""}
             disabledReason={
               isOwner ? null : "Só a dona da conta pode assinar um plano."
             }
@@ -171,6 +177,8 @@ async function SubscriptionView({
               plans={plans}
               initialCode={planParam}
               testMode={mode === "mock"}
+              cardPublicKey={mode === "mercadopago" ? getMpPublicKey() : null}
+              payerEmail={user.email ?? ""}
               disabledReason={
                 isOwner ? null : "Só a dona da conta pode assinar um plano."
               }
