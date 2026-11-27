@@ -47,3 +47,6 @@ export const AUTO_RULE_LABEL: Record<string, string> = {
   agendou: "Quando agenda",
   compareceu: "Quando o atendimento é concluído",
 };
+
+/** Pacientes por importação de planilha no funil. */
+export const IMPORT_MAX_ROWS = 5_000;

@@ -1,6 +1,7 @@
 import { connection, type NextRequest } from "next/server";
 
 import { getMyClinic } from "@/lib/billing/subscription";
+import { toCsv } from "@/lib/csv";
 import { canAccess } from "@/lib/painel/areas";
 import { parsePeriod } from "@/lib/painel/period";
 import { createClient } from "@/lib/supabase/server";
@@ -16,19 +17,6 @@ const ATTENDANCE = {
   equipe: "Equipe",
 };
 const MAX_ROWS = 10_000;
-
-/**
- * Célula de CSV com ponto e vírgula (o padrão do Excel em português). Texto que começa com =, +,
- * - ou @ ganha um apóstrofo na frente, para o Excel não rodar como fórmula algo que veio de uma
- * conversa.
- */
-function cell(value: unknown) {
-  const raw = value == null ? "" : String(value);
-  // "@fulana" (usuário do Instagram) passa como está; "@SOMA(...)" não.
-  const formula = /^(?:[=+\-\t\r]|@(?![\w.]+$))/.test(raw);
-  const text = typeof value === "string" && formula ? `'${raw}` : raw;
-  return /[";\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
 
 const when = (iso: string | null) =>
   iso
@@ -84,29 +72,24 @@ export async function GET(request: NextRequest) {
     "Última mensagem",
     "Encerrada em",
   ];
-  const lines = data.map((c) =>
-    [
-      c.channel === "instagram" ? "Instagram" : "WhatsApp",
-      c.channel === "instagram"
-        ? c.contacts?.instagram_username
-          ? `@${c.contacts.instagram_username}`
-          : ""
-        : c.contact_phone,
-      STATUS[c.status],
-      ATTENDANCE[c.attendance_state],
-      c.contact_reasons?.name ??
-        (c.status === "aberta" ? "" : "Sem motivo identificado"),
-      c.summary ?? "",
-      c.messages[0]?.count ?? 0,
-      when(c.started_at),
-      when(c.last_message_at),
-      when(c.closed_at),
-    ]
-      .map(cell)
-      .join(";"),
-  );
-  // BOM no começo: o Excel abre os acentos certos.
-  const csv = "﻿" + [header.join(";"), ...lines].join("\r\n");
+  const rows = data.map((c) => [
+    c.channel === "instagram" ? "Instagram" : "WhatsApp",
+    c.channel === "instagram"
+      ? c.contacts?.instagram_username
+        ? `@${c.contacts.instagram_username}`
+        : ""
+      : c.contact_phone,
+    STATUS[c.status],
+    ATTENDANCE[c.attendance_state],
+    c.contact_reasons?.name ??
+      (c.status === "aberta" ? "" : "Sem motivo identificado"),
+    c.summary ?? "",
+    c.messages[0]?.count ?? 0,
+    when(c.started_at),
+    when(c.last_message_at),
+    when(c.closed_at),
+  ]);
+  const csv = toCsv(header, rows);
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

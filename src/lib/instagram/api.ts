@@ -40,6 +40,10 @@ export async function instagramApi<T>(
   for (const [k, v] of Object.entries(init.query ?? {})) {
     url.searchParams.set(k, v);
   }
+  // O graph.instagram.com documenta o token no parâmetro access_token; vai também no cabeçalho.
+  if (init.token && !url.searchParams.has("access_token")) {
+    url.searchParams.set("access_token", init.token);
+  }
   const res = await fetch(url, {
     method: init.method ?? "GET",
     headers: {
