@@ -711,6 +711,7 @@ export type Database = {
           estimated_value_cents: number | null;
           first_contact_at: string;
           id: string;
+          imported_at: string | null;
           instagram_id: string | null;
           instagram_username: string;
           last_contact_at: string;
@@ -733,6 +734,7 @@ export type Database = {
           estimated_value_cents?: number | null;
           first_contact_at?: string;
           id?: string;
+          imported_at?: string | null;
           instagram_id?: string | null;
           instagram_username?: string;
           last_contact_at?: string;
@@ -754,6 +756,7 @@ export type Database = {
           estimated_value_cents?: number | null;
           first_contact_at?: string;
           id?: string;
+          imported_at?: string | null;
           instagram_id?: string | null;
           instagram_username?: string;
           last_contact_at?: string;

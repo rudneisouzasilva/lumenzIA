@@ -12,12 +12,14 @@ import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
+  Download,
   Loader2,
   MessageSquare,
   Plus,
   Search,
   Settings2,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +33,7 @@ import {
   saveLostReason,
   saveStage,
 } from "@/app/(painel)/painel/funil/actions";
+import { PipelineImport } from "@/components/painel/pipeline-import";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -132,7 +135,7 @@ export function PipelineBoard({
   contacts: BoardContact[];
   lostReasons: Option[];
   members: Option[];
-  /** Só a dona da conta apaga os dados de um paciente (LGPD). */
+  /** Só a dona da conta apaga os dados de um paciente (LGPD) e importa ou exporta a planilha. */
   canErase: boolean;
 }) {
   const [contacts, setContacts] = useState(initial);
@@ -146,6 +149,7 @@ export function PipelineBoard({
   const [open, setOpen] = useState<BoardContact | null>(null);
   const [askLost, setAskLost] = useState<Move | null>(null);
   const [editing, setEditing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [, startTransition] = useTransition();
   const [seenInitial, setSeenInitial] = useState(initial);
   // Dados novos do servidor (depois de salvar) substituem o estado local.
@@ -371,11 +375,34 @@ export function PipelineBoard({
             Buscar
           </Button>
         </form>
-        <Button variant="outline" onClick={() => setEditing(true)}>
-          <Settings2 />
-          Etapas e motivos de perda
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {canErase && (
+            <>
+              <Button variant="outline" onClick={() => setImporting(true)}>
+                <Upload />
+                Importar
+              </Button>
+              <Button variant="outline" asChild>
+                <a href="/painel/funil/exportar" download>
+                  <Download />
+                  Exportar
+                </a>
+              </Button>
+            </>
+          )}
+          <Button variant="outline" onClick={() => setEditing(true)}>
+            <Settings2 />
+            Etapas e motivos de perda
+          </Button>
+        </div>
       </div>
+      {canErase && (
+        <PipelineImport
+          open={importing}
+          onOpenChange={setImporting}
+          stages={stages.map((s) => ({ id: s.id, name: s.name }))}
+        />
+      )}
 
       <div
         ref={scroller}

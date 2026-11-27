@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatPrice } from "@/lib/format";
+import { parseReais } from "@/lib/money";
 
 export type EditablePlan = {
   id: number;
@@ -21,18 +22,6 @@ export type EditablePlan = {
 
 /** 19700 → "197,00" */
 const toReais = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
-
-/** "197", "197,5", "1.297,90" ou "197.90" → centavos; null se não for um valor. */
-export function parseReais(raw: string): number | null {
-  let text = raw.replace(/[R$\s]/g, "");
-  if (!text) return null;
-  // Com vírgula, ela é o decimal e os pontos são milhar; sem vírgula, um ponto com 1 ou 2
-  // dígitos no fim é decimal.
-  if (text.includes(",")) text = text.replaceAll(".", "").replace(",", ".");
-  else if (!/\.\d{1,2}$/.test(text)) text = text.replaceAll(".", "");
-  if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
-  return Math.round(Number(text) * 100);
-}
 
 export function PlansEditor({ plans }: { plans: EditablePlan[] }) {
   if (!plans.length) {

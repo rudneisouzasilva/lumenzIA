@@ -4,8 +4,9 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import type { FormResult } from "@/lib/auth/validation";
+import { normalizePhone, phoneVariants } from "@/lib/format";
 import { getActionContext } from "@/lib/painel/context";
-import { STAGE_COLORS } from "@/lib/painel/pipeline";
+import { IMPORT_MAX_ROWS, STAGE_COLORS } from "@/lib/painel/pipeline";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const fail = (error: string): FormResult => ({ ok: false, error });
@@ -266,4 +267,156 @@ export async function deleteLostReason(id: unknown): Promise<FormResult> {
   if (error) return saveError("apagar motivo de perda", error.message);
   refresh();
   return { ok: true };
+}
+
+const importSchema = z.object({
+  stageId: uuid.nullable(),
+  rows: z
+    .array(
+      z.object({
+        name: z.string().trim().max(120),
+        phone: z.string().trim().max(40),
+        notes: z.string().trim().max(2000),
+        valueCents: z.number().int().min(0).max(100_000_000).nullable(),
+      }),
+    )
+    .min(1, "A planilha não tem nenhuma linha.")
+    .max(
+      IMPORT_MAX_ROWS,
+      `Importe no máximo ${IMPORT_MAX_ROWS.toLocaleString("pt-BR")} pacientes de uma vez.`,
+    ),
+});
+
+/**
+ * Importa pacientes de uma planilha (lida no navegador) para o funil. Só a dona da conta.
+ *  - Telefone é obrigatório e é o que identifica o paciente: sem um número válido, a linha fica de
+ *    fora; repetido na planilha, vale a primeira vez.
+ *  - Quem já existe na clínica (o mesmo número, com ou sem o nono dígito) não muda de etapa nem
+ *    perde nada: só ganha nome, anotações e valor que ainda estavam vazios.
+ *  - Quem é novo entra na etapa escolhida, marcado como importado (os indicadores de "contatos
+ *    novos" e conversão não contam importados).
+ */
+export async function importContacts(input: unknown): Promise<FormResult> {
+  const parsed = importSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Confira a planilha.");
+  }
+  const ctx = await getActionContext("owner");
+  if ("error" in ctx) return fail(ctx.error);
+  const clinicId = ctx.clinic.id;
+  const admin = createAdminClient();
+
+  const { stageId } = parsed.data;
+  if (stageId) {
+    const { data: stage } = await admin
+      .from("pipeline_stages")
+      .select("id")
+      .eq("id", stageId)
+      .eq("clinic_id", clinicId)
+      .maybeSingle();
+    if (!stage) return fail("Escolha uma etapa do funil.");
+  }
+
+  // Normaliza e tira repetidos (o mesmo número com ou sem o nono dígito conta como um só).
+  type Row = (typeof parsed.data.rows)[number] & { phone: string };
+  const rows: Row[] = [];
+  const seen = new Set<string>();
+  let invalid = 0;
+  let repeated = 0;
+  for (const row of parsed.data.rows) {
+    const phone = normalizePhone(row.phone);
+    if (!phone) {
+      invalid++;
+      continue;
+    }
+    const variants = phoneVariants(phone);
+    if (variants.some((v) => seen.has(v))) {
+      repeated++;
+      continue;
+    }
+    variants.forEach((v) => seen.add(v));
+    rows.push({ ...row, phone });
+  }
+  if (!rows.length) {
+    return fail(
+      "Nenhuma linha tem um telefone válido. Confira a coluna do telefone (com DDD).",
+    );
+  }
+
+  // Quem já está na clínica, por qualquer forma do número.
+  const existing = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      notes: string;
+      estimated_value_cents: number | null;
+    }
+  >();
+  const allVariants = [...seen];
+  for (let i = 0; i < allVariants.length; i += 300) {
+    const { data, error } = await admin
+      .from("contacts")
+      .select("id, phone, name, notes, estimated_value_cents")
+      .eq("clinic_id", clinicId)
+      .in("phone", allVariants.slice(i, i + 300));
+    if (error) return saveError("importar (ler)", error.message);
+    for (const c of data) if (c.phone) existing.set(c.phone, c);
+  }
+
+  const now = new Date().toISOString();
+  const toInsert = [];
+  let updated = 0;
+  for (const row of rows) {
+    const current = phoneVariants(row.phone)
+      .map((v) => existing.get(v))
+      .find(Boolean);
+    if (!current) {
+      toInsert.push({
+        clinic_id: clinicId,
+        phone: row.phone,
+        name: row.name,
+        notes: row.notes,
+        estimated_value_cents: row.valueCents,
+        stage_id: stageId,
+        stage_changed_at: stageId ? now : null,
+        imported_at: now,
+      });
+      continue;
+    }
+    const patch = {
+      ...(!current.name && row.name ? { name: row.name } : {}),
+      ...(!current.notes && row.notes ? { notes: row.notes } : {}),
+      ...(current.estimated_value_cents == null && row.valueCents != null
+        ? { estimated_value_cents: row.valueCents }
+        : {}),
+    };
+    if (!Object.keys(patch).length) continue;
+    const { error } = await admin
+      .from("contacts")
+      .update(patch)
+      .eq("id", current.id)
+      .eq("clinic_id", clinicId);
+    if (error) return saveError("importar (atualizar)", error.message);
+    updated++;
+  }
+
+  for (let i = 0; i < toInsert.length; i += 500) {
+    const { error } = await admin
+      .from("contacts")
+      .insert(toInsert.slice(i, i + 500));
+    if (error) return saveError("importar (criar)", error.message);
+  }
+
+  refresh();
+  const parts = [
+    `${toInsert.length} ${toInsert.length === 1 ? "paciente novo" : "pacientes novos"}`,
+    updated &&
+      `${updated} ${updated === 1 ? "já existia e foi completado" : "já existiam e foram completados"}`,
+    rows.length - toInsert.length - updated &&
+      `${rows.length - toInsert.length - updated} já existiam sem nada a completar`,
+    repeated && `${repeated} repetidos na planilha`,
+    invalid && `${invalid} sem telefone válido`,
+  ].filter(Boolean);
+  return { ok: true, message: `Importação concluída: ${parts.join(", ")}.` };
 }
