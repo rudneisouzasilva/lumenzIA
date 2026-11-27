@@ -12,6 +12,8 @@ export const DEFAULT_CONVERSATION_TIMEOUT_HOURS = 6;
 export type InboundClinic = {
   id: string;
   is_active: boolean;
+  /** A assistente pode estar pausada só no WhatsApp. */
+  whatsapp_ai_active: boolean;
   conversation_timeout_hours: number | null;
   staff_phone_numbers: string[];
   staff_alert_template_name: string | null;
@@ -26,7 +28,7 @@ export async function clinicByPhoneNumberId(
   const { data } = await admin
     .from("clinics")
     .select(
-      "id, is_active, conversation_timeout_hours, staff_phone_numbers, staff_alert_template_name, template_language",
+      "id, is_active, whatsapp_ai_active, conversation_timeout_hours, staff_phone_numbers, staff_alert_template_name, template_language",
     )
     .eq("whatsapp_phone_number_id", phoneNumberId)
     .maybeSingle()

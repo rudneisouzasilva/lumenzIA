@@ -228,7 +228,8 @@ async function aiGate(
   const sender: Sender | null = accessToken
     ? { phoneNumberId, accessToken }
     : null;
-  if (!sender || !clinic.is_active) return { ok: false, sender };
+  if (!sender || !clinic.is_active || !clinic.whatsapp_ai_active)
+    return { ok: false, sender };
 
   const subscriptionId = await subscriptionWithQuota(admin, clinic.id, sender);
   return subscriptionId

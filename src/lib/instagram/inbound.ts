@@ -83,6 +83,7 @@ type Account = NonNullable<Awaited<ReturnType<typeof accountByIgUserId>>>;
 type Clinic = {
   id: string;
   is_active: boolean;
+  instagram_ai_active: boolean;
   conversation_timeout_hours: number | null;
 };
 
@@ -151,7 +152,9 @@ export async function handleInstagramEvent(body: InstagramEvent) {
     try {
       const { data } = await admin
         .from("clinics")
-        .select("id, is_active, conversation_timeout_hours")
+        .select(
+          "id, is_active, instagram_ai_active, conversation_timeout_hours",
+        )
         .eq("id", account.clinic_id)
         .single()
         .throwOnError();
@@ -188,7 +191,7 @@ async function aiGate(admin: Admin, clinic: Clinic): Promise<Gate> {
     getInstagramSender(admin, clinic.id),
     getClinicSender(admin, clinic.id).catch(() => null),
   ]);
-  if (!sender || !clinic.is_active) {
+  if (!sender || !clinic.is_active || !clinic.instagram_ai_active) {
     return { ok: false, sender, alertSender, subscriptionId: null };
   }
   const subscriptionId = await subscriptionWithQuota(

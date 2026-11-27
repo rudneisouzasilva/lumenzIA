@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
+  Bot,
   AtSign,
   BellRing,
   CalendarCheck,
@@ -244,7 +245,13 @@ async function Overview() {
 
   const connections = (
     <ConnectionsCard
-      whatsapp={{ connected, active: settings.is_active }}
+      active={settings.is_active}
+      whatsapp={{
+        state: connected ? "ok" : "off",
+        text: connected ? "Conectado" : "Não conectado",
+        connected,
+        active: settings.whatsapp_ai_active,
+      }}
       agenda={
         integration?.enabled
           ? googleDown
@@ -252,13 +259,15 @@ async function Overview() {
             : { state: "ok", text: agendaName }
           : { state: "off", text: "Não conectada" }
       }
-      instagram={
-        instagram
+      instagram={{
+        ...(instagram
           ? instagram.status === "ativo"
             ? { state: "ok", text: `@${instagram.username}` }
             : { state: "warn", text: "Conecte de novo" }
-          : { state: "off", text: "Não conectado" }
-      }
+          : { state: "off", text: "Não conectado" }),
+        connected: instagram?.status === "ativo",
+        active: settings.instagram_ai_active,
+      }}
     />
   );
 
@@ -481,67 +490,87 @@ function SetupCard({
 }
 
 type Connection = { state: "ok" | "warn" | "off"; text: string };
+type ChannelConnection = Connection & { connected: boolean; active: boolean };
+
+/** O que a assistente está fazendo agora, em uma frase. */
+function assistantSummary(
+  active: boolean,
+  whatsapp: ChannelConnection,
+  instagram: ChannelConnection,
+) {
+  if (!whatsapp.connected && !instagram.connected)
+    return "Conecte o WhatsApp ou o Instagram para a assistente começar a responder.";
+  if (!active) return "A assistente está pausada em todos os canais.";
+  const on = [
+    whatsapp.connected && whatsapp.active && "no WhatsApp",
+    instagram.connected && instagram.active && "no Instagram",
+  ].filter(Boolean);
+  if (!on.length) return "A assistente está pausada nos canais conectados.";
+  return `A assistente está respondendo os pacientes ${on.join(" e ")}.`;
+}
 
 function ConnectionsCard({
+  active,
   whatsapp,
   agenda,
   instagram,
 }: {
-  whatsapp: { connected: boolean; active: boolean };
+  active: boolean;
+  whatsapp: ChannelConnection;
   agenda: Connection;
-  instagram: Connection;
+  instagram: ChannelConnection;
 }) {
-  const { connected, active } = whatsapp;
+  const anyConnected = whatsapp.connected || instagram.connected;
+  const online =
+    active &&
+    ((whatsapp.connected && whatsapp.active) ||
+      (instagram.connected && instagram.active));
   return (
     <PanelCard>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="flex items-center gap-2 font-display text-lg font-semibold">
-            <Smartphone className="size-5 text-primary" />
-            WhatsApp
+            <Bot className="size-5 text-primary" />
+            Assistente
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {connected
-              ? active
-                ? "A assistente está respondendo os pacientes."
-                : "A assistente está pausada."
-              : "Conecte o número da clínica para a assistente começar a responder."}
+            {assistantSummary(active, whatsapp, instagram)}
           </p>
         </div>
-        <AssistantToggle active={active} disabled={!connected} />
+        <AssistantToggle active={active} disabled={!anyConnected} />
       </div>
       <div
         className={cn(
           "mt-5 flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
-          connected
-            ? active
+          anyConnected
+            ? online
               ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
               : "bg-muted text-muted-foreground"
             : "bg-glow/15 text-amber-700 dark:text-glow",
         )}
       >
         <span className="relative flex size-2.5">
-          {connected && active && (
+          {online && (
             <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
           )}
           <span
             className={cn(
               "relative size-2.5 rounded-full",
-              connected
-                ? active
+              anyConnected
+                ? online
                   ? "bg-emerald-500"
                   : "bg-muted-foreground"
                 : "bg-glow",
             )}
           />
         </span>
-        {connected
-          ? active
+        {anyConnected
+          ? online
             ? "Online"
             : "Pausada"
-          : "Aguardando conexão do número"}
+          : "Aguardando conexão de um canal"}
       </div>
-      {!connected && (
+      {!whatsapp.connected && !instagram.connected && (
         <Button asChild className="mt-4 w-full sm:w-auto">
           <Link href="/painel/whatsapp">
             <Smartphone />
@@ -551,18 +580,48 @@ function ConnectionsCard({
       )}
       <ul className="mt-5 space-y-1 border-t pt-4 text-sm">
         <ConnectionRow
-          href="/painel/agenda"
-          icon={CalendarDays}
-          label="Agenda"
-          status={agenda}
+          href="/painel/whatsapp"
+          icon={Smartphone}
+          label="WhatsApp"
+          status={whatsapp}
+          toggle={
+            whatsapp.connected && (
+              <AssistantToggle
+                channel="whatsapp"
+                active={whatsapp.active}
+                disabled={!active}
+              />
+            )
+          }
         />
         <ConnectionRow
           href="/painel/instagram"
           icon={AtSign}
           label="Instagram"
           status={instagram}
+          toggle={
+            instagram.connected && (
+              <AssistantToggle
+                channel="instagram"
+                active={instagram.active}
+                disabled={!active}
+              />
+            )
+          }
+        />
+        <ConnectionRow
+          href="/painel/agenda"
+          icon={CalendarDays}
+          label="Agenda"
+          status={agenda}
         />
       </ul>
+      {active && anyConnected && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Pausando um canal, as mensagens dele continuam chegando na caixa de
+          entrada para a equipe responder.
+        </p>
+      )}
     </PanelCard>
   );
 }
@@ -572,23 +631,25 @@ function ConnectionRow({
   icon: Icon,
   label,
   status,
+  toggle,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   status: Connection;
+  toggle?: React.ReactNode;
 }) {
   return (
-    <li>
+    <li className="flex items-center gap-3">
       <Link
         href={href}
-        className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-accent/50"
+        className="group -mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-accent/50"
       >
         <Icon className="size-4 text-muted-foreground" />
         <span className="flex-1">{label}</span>
         <span
           className={cn(
-            "flex items-center gap-1.5 text-xs",
+            "flex min-w-0 items-center gap-1.5 truncate text-xs",
             status.state === "ok" && "text-emerald-700 dark:text-emerald-400",
             status.state === "warn" && "text-amber-700 dark:text-amber-400",
             status.state === "off" && "text-muted-foreground",
@@ -596,15 +657,16 @@ function ConnectionRow({
         >
           <span
             className={cn(
-              "size-2 rounded-full",
+              "size-2 shrink-0 rounded-full",
               status.state === "ok" && "bg-emerald-500",
               status.state === "warn" && "bg-amber-500",
               status.state === "off" && "bg-muted-foreground/40",
             )}
           />
-          {status.text}
+          <span className="truncate">{status.text}</span>
         </span>
       </Link>
+      {toggle}
     </li>
   );
 }

@@ -489,6 +489,7 @@ export type Database = {
           followup_max_attempts: number;
           id: string;
           is_active: boolean;
+          instagram_ai_active: boolean;
           name: string;
           past_conversations: string;
           reminder_by_email: boolean;
@@ -508,6 +509,7 @@ export type Database = {
           whatsapp_history_messages: number;
           whatsapp_history_progress: number;
           whatsapp_history_status: string;
+          whatsapp_ai_active: boolean;
           whatsapp_phone_number_id: string | null;
           whatsapp_verified_name: string | null;
           whatsapp_waba_id: string | null;
@@ -531,6 +533,7 @@ export type Database = {
           followup_max_attempts?: number;
           id?: string;
           is_active?: boolean;
+          instagram_ai_active?: boolean;
           name: string;
           past_conversations?: string;
           reminder_by_email?: boolean;
@@ -550,6 +553,7 @@ export type Database = {
           whatsapp_history_messages?: number;
           whatsapp_history_progress?: number;
           whatsapp_history_status?: string;
+          whatsapp_ai_active?: boolean;
           whatsapp_phone_number_id?: string | null;
           whatsapp_verified_name?: string | null;
           whatsapp_waba_id?: string | null;
@@ -572,6 +576,7 @@ export type Database = {
           followup_max_attempts?: number;
           id?: string;
           is_active?: boolean;
+          instagram_ai_active?: boolean;
           name?: string;
           past_conversations?: string;
           reminder_by_email?: boolean;
@@ -591,6 +596,7 @@ export type Database = {
           whatsapp_history_messages?: number;
           whatsapp_history_progress?: number;
           whatsapp_history_status?: string;
+          whatsapp_ai_active?: boolean;
           whatsapp_phone_number_id?: string | null;
           whatsapp_verified_name?: string | null;
           whatsapp_waba_id?: string | null;
