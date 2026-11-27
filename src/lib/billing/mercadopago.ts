@@ -138,56 +138,16 @@ export function isValidWebhookSignature(input: {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** O motivo que o Mercado Pago devolveu ("message" e as "cause"), curto e sem quebras de linha. */
-function mpErrorDetail(body: string) {
-  try {
-    const json = JSON.parse(body) as {
-      message?: unknown;
-      error?: unknown;
-      cause?: { code?: unknown; description?: unknown }[] | unknown;
-    };
-    const causes = Array.isArray(json.cause)
-      ? json.cause.map((c: { code?: unknown; description?: unknown }) =>
-          [c?.code, c?.description].filter(Boolean).join(" "),
-        )
-      : [];
-    const parts = [json.message ?? json.error, ...causes]
-      .map((v) =>
-        typeof v === "string" || typeof v === "number" ? String(v) : "",
-      )
-      .filter(Boolean);
-    return parts.join(" · ").replace(/\s+/g, " ").slice(0, 200);
-  } catch {
-    return body.replace(/\s+/g, " ").slice(0, 200);
-  }
-}
-
 /**
- * Mensagem para a pessoa quando o Mercado Pago recusa criar a assinatura com o cartão. Recusas
- * vêm como 4xx; o resto é falha do lado do Mercado Pago. Mostra também o motivo devolvido pelo
- * Mercado Pago, para dar para descobrir o que travou.
+ * Mensagem para a pessoa quando o Mercado Pago recusa criar a assinatura com o cartão. Recusas do
+ * cartão vêm como 4xx; o resto é falha do lado do Mercado Pago.
  */
 export function cardErrorMessage(e: unknown) {
-  if (!(e instanceof MpError) || e.status < 400 || e.status >= 500) {
-    return "O Mercado Pago não respondeu. Tente novamente em alguns instantes.";
+  if (e instanceof MpError && e.status >= 400 && e.status < 500) {
+    if (/payer_email|email/i.test(e.body) && !/card/i.test(e.body)) {
+      return "O Mercado Pago não aceitou o e-mail informado. Confira o e-mail e tente de novo.";
+    }
+    return "O cartão foi recusado. Confira os dados ou tente outro cartão. Se o banco bloqueou por segurança, libere a compra no app do banco e tente de novo.";
   }
-  const detail = mpErrorDetail(e.body);
-  const text = detail.toLowerCase();
-  let message: string;
-  if (/collector|same user|mesmo usu/.test(text)) {
-    message =
-      "Esse e-mail é da própria conta do Mercado Pago que recebe os pagamentos. Assine com outro e-mail.";
-  } else if (
-    /test user|real or test|usuário de teste|usuarios de prueba/.test(text)
-  ) {
-    message =
-      "As credenciais do Mercado Pago misturam teste e produção. Confira se MP_ACCESS_TOKEN e MP_PUBLIC_KEY são as duas de produção.";
-  } else if (/payer_email|email/.test(text) && !/card/.test(text)) {
-    message =
-      "O Mercado Pago não aceitou o e-mail informado. Confira o e-mail e tente de novo.";
-  } else {
-    message =
-      "O cartão foi recusado. Confira os dados ou tente outro cartão. Se o banco bloqueou por segurança, libere a compra no app do banco e tente de novo.";
-  }
-  return detail ? `${message} (Mercado Pago: ${detail})` : message;
+  return "O Mercado Pago não respondeu. Tente novamente em alguns instantes.";
 }
