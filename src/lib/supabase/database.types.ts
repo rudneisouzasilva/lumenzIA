@@ -1824,6 +1824,10 @@ export type Database = {
         Returns: undefined;
       };
       dearmor: { Args: { "": string }; Returns: string };
+      delete_patient_data: {
+        Args: { p_clinic_id: string; p_contact_id: string };
+        Returns: Json;
+      };
       due_follow_ups: {
         Args: { p_limit: number };
         Returns: {

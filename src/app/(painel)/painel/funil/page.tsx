@@ -144,6 +144,7 @@ async function Board({
       unstagedTotal={unstaged.total}
       contacts={contacts}
       lostReasons={lostReasons}
+      canErase={clinic.role === "owner"}
       members={members.map((m) => ({
         id: m.user_id,
         name: m.profiles?.full_name || "Sem nome",
