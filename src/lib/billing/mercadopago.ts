@@ -4,6 +4,16 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const MP_API = "https://api.mercadopago.com";
 
+/** Resposta de erro do Mercado Pago, com o status HTTP para separar recusa de falha da API. */
+export class MpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(`Mercado Pago ${status}: ${body.slice(0, 300)}`);
+  }
+}
+
 async function mpFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${MP_API}${path}`, {
     ...init,
@@ -16,11 +26,7 @@ async function mpFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     // Sem resposta em 15 segundos, desiste: o webhook responde erro e o Mercado Pago reenvia.
     signal: AbortSignal.timeout(15_000),
   });
-  if (!res.ok) {
-    throw new Error(
-      `Mercado Pago ${res.status}: ${(await res.text()).slice(0, 300)}`,
-    );
-  }
+  if (!res.ok) throw new MpError(res.status, await res.text());
   return res.json() as Promise<T>;
 }
 
@@ -35,8 +41,11 @@ type Preapproval = {
 
 /**
  * Cria a assinatura recorrente (preapproval) sem plano do Mercado Pago: nome e preço vivem só em
- * public.plans, então mudar o preço lá não exige mexer no Mercado Pago. Devolve a página onde a
- * pessoa autoriza a cobrança.
+ * public.plans, então mudar o preço lá não exige mexer no Mercado Pago.
+ *  - Sem cartão: fica pendente e devolve a página onde a pessoa autoriza a cobrança (ela precisa
+ *    entrar no Mercado Pago com o mesmo e-mail).
+ *  - Com cardTokenId (cartão digitado na LumenzIA): já nasce autorizada e a primeira cobrança sai
+ *    em seguida; o resultado chega pelo webhook. Não exige conta no Mercado Pago.
  */
 export async function createPreapproval(input: {
   subscriptionId: string;
@@ -44,6 +53,7 @@ export async function createPreapproval(input: {
   priceCents: number;
   payerEmail: string;
   backUrl: string;
+  cardTokenId?: string;
 }) {
   const created = await mpFetch<Preapproval>("/preapproval", {
     method: "POST",
@@ -58,6 +68,9 @@ export async function createPreapproval(input: {
         transaction_amount: input.priceCents / 100,
         currency_id: "BRL",
       },
+      ...(input.cardTokenId
+        ? { card_token_id: input.cardTokenId, status: "authorized" }
+        : {}),
     }),
   });
   return { id: created.id, initPoint: created.init_point };
@@ -123,4 +136,18 @@ export function isValidWebhookSignature(input: {
   const a = Buffer.from(received);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Mensagem para a pessoa quando o Mercado Pago recusa criar a assinatura com o cartão. Recusas do
+ * cartão vêm como 4xx; o resto é falha do lado do Mercado Pago.
+ */
+export function cardErrorMessage(e: unknown) {
+  if (e instanceof MpError && e.status >= 400 && e.status < 500) {
+    if (/payer_email|email/i.test(e.body) && !/card/i.test(e.body)) {
+      return "O Mercado Pago não aceitou o e-mail informado. Confira o e-mail e tente de novo.";
+    }
+    return "O cartão foi recusado. Confira os dados ou tente outro cartão. Se o banco bloqueou por segurança, libere a compra no app do banco e tente de novo.";
+  }
+  return "O Mercado Pago não respondeu. Tente novamente em alguns instantes.";
 }

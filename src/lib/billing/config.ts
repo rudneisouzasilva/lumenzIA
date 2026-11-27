@@ -19,3 +19,12 @@ export function getPaymentMode(): PaymentMode {
   }
   return mode;
 }
+
+/**
+ * Public Key do Mercado Pago (não é segredo: vai para o navegador). Com ela, a pessoa digita o
+ * cartão na própria LumenzIA e não precisa ter conta no Mercado Pago. Sem ela, o pagamento abre
+ * a página do Mercado Pago, que exige entrar com o mesmo e-mail da conta da LumenzIA.
+ */
+export function getMpPublicKey(): string | null {
+  return process.env.MP_PUBLIC_KEY?.trim() || null;
+}

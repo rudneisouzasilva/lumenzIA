@@ -82,6 +82,10 @@ confirmação de e-mail foi desligada na etapa 4. Para religar:
 ## 4. Cobrança real (Mercado Pago)
 
 - [ ] Vercel: `PAYMENT_MODE=mercadopago` e `MP_ACCESS_TOKEN` com o Access Token **de produção**.
+- [ ] Vercel: `MP_PUBLIC_KEY` com a Public Key **de produção** (Mercado Pago → Suas integrações →
+      aplicação → Credenciais de produção). Com ela, a pessoa digita o cartão na própria LumenzIA e
+      não precisa de conta no Mercado Pago. Sem ela, o pagamento abre a página do Mercado Pago, que
+      exige entrar com o mesmo e-mail da conta da LumenzIA.
 - [ ] Mercado Pago → Suas integrações → **Webhooks**: URL
       `https://lumenzia.com.br/api/webhooks/mercadopago`, evento “Planos e assinaturas”; copiar a
       assinatura secreta para `MP_WEBHOOK_SECRET`.

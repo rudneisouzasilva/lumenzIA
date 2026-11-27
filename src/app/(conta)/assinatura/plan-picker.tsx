@@ -11,17 +11,23 @@ import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { startCheckout } from "./actions";
+import { CardCheckout } from "./card-checkout";
 
 export function PlanPicker({
   plans,
   initialCode,
   testMode,
   disabledReason,
+  cardPublicKey,
+  payerEmail,
 }: {
   plans: Plan[];
   initialCode: string | null;
   testMode: boolean;
   disabledReason: string | null;
+  /** Com a Public Key do Mercado Pago, o cartão é digitado aqui, sem conta no Mercado Pago. */
+  cardPublicKey: string | null;
+  payerEmail: string;
 }) {
   const [selected, setSelected] = useState(
     plans.find((p) => p.code === initialCode)?.code ??
@@ -29,10 +35,15 @@ export function PlanPicker({
       plans[0]?.code,
   );
   const [pending, startTransition] = useTransition();
+  const [cardOpen, setCardOpen] = useState(false);
   const plan = plans.find((p) => p.code === selected);
 
   const checkout = () => {
     if (!plan) return;
+    if (cardPublicKey && !testMode) {
+      setCardOpen(true);
+      return;
+    }
     startTransition(async () => {
       const result = await startCheckout(plan.code);
       if (result && !result.ok) toast.error(result.error);
@@ -120,8 +131,9 @@ export function PlanPicker({
           ) : (
             <span className="flex items-center gap-2">
               <Lock className="size-4 text-primary" />
-              Pagamento seguro pelo Mercado Pago. Renovação mensal, cancele
-              quando quiser.
+              {cardPublicKey
+                ? "Pague com cartão de crédito, sem precisar de conta no Mercado Pago. Renovação mensal, cancele quando quiser."
+                : "Pagamento seguro pelo Mercado Pago. Renovação mensal, cancele quando quiser."}
             </span>
           )}
           {disabledReason && (
@@ -142,6 +154,15 @@ export function PlanPicker({
             : "Escolha um plano"}
         </Button>
       </div>
+      {cardPublicKey && plan && (
+        <CardCheckout
+          open={cardOpen}
+          onOpenChange={setCardOpen}
+          publicKey={cardPublicKey}
+          plan={plan}
+          payerEmail={payerEmail}
+        />
+      )}
     </section>
   );
 }
