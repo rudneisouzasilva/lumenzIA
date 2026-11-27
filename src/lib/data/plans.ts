@@ -1,4 +1,4 @@
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/supabase/database.types";
@@ -66,10 +66,14 @@ const fallbackPlans: Plan[] = [
   },
 ];
 
+/** Etiqueta do cache dos planos: o /admin/planos a renova ao salvar um preço. */
+export const PLANS_CACHE_TAG = "plans";
+
 /** Planos ativos, em ordem. Lidos do Supabase (tabela pública) e guardados em cache por horas. */
 export async function getPlans(): Promise<Plan[]> {
   "use cache";
   cacheLife("hours");
+  cacheTag(PLANS_CACHE_TAG);
 
   if (!isSupabaseConfigured) return fallbackPlans;
 
