@@ -138,6 +138,8 @@ export async function exchangeCode(
       client_secret: creds.appSecret,
       access_token: short.access_token,
     },
+  }).catch((e: Error) => {
+    throw new Error(`token de 60 dias: ${e.message}`);
   });
   if (!long.access_token) throw new Error("token de 60 dias não veio");
   return {
@@ -162,11 +164,21 @@ export async function refreshToken(token: string): Promise<LongLivedToken> {
 
 /** A conta conectada: o id que vem nos avisos do webhook, o @ e o nome. */
 export async function fetchAccount(token: string) {
-  const me = await instagramApi<{
-    user_id?: string | number;
-    username?: string;
-    name?: string;
-  }>("me", { token, query: { fields: "user_id,username,name" } });
+  type Me = { user_id?: string | number; username?: string; name?: string };
+  const query = { fields: "user_id,username,name", access_token: token };
+  let me: Me;
+  try {
+    me = await instagramApi<Me>("me", { query });
+  } catch (e) {
+    // Uma INSTAGRAM_API_VERSION que o graph.instagram.com não conhece dá "Unsupported request":
+    // tenta de novo sem versão antes de desistir.
+    console.warn("[instagram] ler conta (com versão):", (e as Error).message);
+    try {
+      me = await instagramApi<Me>("me", { query, unversioned: true });
+    } catch (e2) {
+      throw new Error(`ler conta: ${(e2 as Error).message}`);
+    }
+  }
   const igUserId = String(me.user_id ?? "");
   if (!/^\d+$/.test(igUserId)) throw new Error("conta do Instagram sem id");
   return {
