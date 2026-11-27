@@ -141,3 +141,19 @@ export const grantSchema = z.object({
   note: z.string().trim().max(300, "Use no máximo 300 caracteres."),
 });
 export type Grant = z.infer<typeof grantSchema>;
+
+/** Preço e cota de um plano, editados em /admin/planos. */
+export const planSchema = z.object({
+  planId: z.number().int().positive("Plano inválido."),
+  priceCents: z
+    .number("Informe o preço.")
+    .int("Use no máximo dois dígitos de centavos.")
+    .min(100, "O preço mínimo é R$ 1,00.")
+    .max(10_000_000, "O preço máximo é R$ 100.000,00."),
+  messageQuota: z
+    .number("Informe a cota de mensagens.")
+    .int("Use um número inteiro de mensagens.")
+    .min(1, "Pelo menos 1 mensagem.")
+    .max(1_000_000, "No máximo 1.000.000 de mensagens."),
+});
+export type PlanInput = z.infer<typeof planSchema>;

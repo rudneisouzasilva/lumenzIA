@@ -8,6 +8,7 @@ import {
   Building2,
   Gift,
   LogOut,
+  Tags,
   Rocket,
   ScrollText,
   ShieldCheck,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/admin", label: "Clientes", icon: Building2 },
   { href: "/admin/acessos", label: "Acessos", icon: Gift },
+  { href: "/admin/planos", label: "Planos", icon: Tags },
   { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText },
   { href: "/admin/lancamento", label: "Lançamento", icon: Rocket },
 ];

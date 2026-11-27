@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refresh, updateTag } from "next/cache";
 import { z } from "zod";
 
 import { getAdminActionContext } from "@/lib/admin/context";
@@ -8,12 +8,15 @@ import {
   agendaSchema,
   grantSchema,
   parseActionsConfig,
+  planSchema,
   templatesSchema,
   whatsappTechSchema,
 } from "@/lib/admin/validation";
 import type { FormResult } from "@/lib/auth/validation";
 import { isSubscriptionActive } from "@/lib/billing/active";
 import { getPaymentMode } from "@/lib/billing/config";
+import { PLANS_CACHE_TAG } from "@/lib/data/plans";
+import { formatPrice } from "@/lib/format";
 import { cancelPreapproval, getPreapproval } from "@/lib/billing/mercadopago";
 import { IMAGES_BUCKET } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -645,4 +648,56 @@ export async function deleteClinic(
         message: `Clínica excluída, mas ${failed} login(s) não puderam ser apagados. Veja em Authentication no Supabase.`,
       }
     : { ok: true, message: `Clínica excluída; ${people}.` };
+}
+
+/**
+ * Muda o preço e a cota de mensagens de um plano. Vale para as próximas assinaturas: quem já
+ * assinou continua sendo cobrado pelo valor que autorizou no Mercado Pago.
+ */
+export async function updatePlan(input: unknown): Promise<FormResult> {
+  const ctx = await getAdminActionContext();
+  if ("error" in ctx) return fail(ctx.error);
+  const parsed = planSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Confira os campos.");
+  }
+  const v = parsed.data;
+  const admin = createAdminClient();
+  const { data: before, error: readError } = await admin
+    .from("plans")
+    .select("name, price_cents, message_quota")
+    .eq("id", v.planId)
+    .maybeSingle();
+  if (readError) return saveError("ler plano", readError.message);
+  if (!before) return fail("Plano não encontrado.");
+  if (
+    before.price_cents === v.priceCents &&
+    before.message_quota === v.messageQuota
+  ) {
+    return { ok: true };
+  }
+
+  const { error } = await admin
+    .from("plans")
+    .update({ price_cents: v.priceCents, message_quota: v.messageQuota })
+    .eq("id", v.planId);
+  if (error) return saveError("salvar plano", error.message);
+
+  const changes = [
+    before.price_cents !== v.priceCents &&
+      `preço: ${formatPrice(before.price_cents)} → ${formatPrice(v.priceCents)}`,
+    before.message_quota !== v.messageQuota &&
+      `mensagens: ${before.message_quota} → ${v.messageQuota}`,
+  ].filter(Boolean);
+  await audit(
+    admin,
+    ctx.user.id,
+    null,
+    "plano alterado",
+    `${before.name}: ${changes.join("; ")}`,
+  );
+  // Site, cadastro e assinatura mostram o novo valor na hora, sem esperar o cache de horas.
+  updateTag(PLANS_CACHE_TAG);
+  refresh();
+  return { ok: true };
 }
