@@ -65,7 +65,7 @@ export function areaForPath(pathname: string): Area | null {
 }
 
 /** Telas só da dona (fora do /painel, a assinatura é conferida na própria página). */
-export const OWNER_ONLY_PATHS = ["/painel/equipe"];
+export const OWNER_ONLY_PATHS = ["/painel/equipe", "/painel/preencher"];
 
 /** Lista gravada no banco → áreas conhecidas (ignora nomes antigos ou inválidos). */
 export function toAccess(

@@ -173,7 +173,8 @@ export async function handleWhatsappEvent(
             .map((e) => `${e.code} ${e.title}`)
             .join(" | ");
           console.error(
-            `[whatsapp] entrega falhou (mensagem ${st.id}, para ${st.recipient_id}): ${why}`,
+            // Só o fim do número: o log não guarda o telefone do paciente.
+            `[whatsapp] entrega falhou (mensagem ${st.id}, para …${String(st.recipient_id ?? "").slice(-4)}): ${why}`,
           );
         }
       }
