@@ -90,7 +90,8 @@ export default function DataDeletionPage() {
       <ol>
         <li>
           Peça diretamente à clínica, pelo mesmo WhatsApp ou Instagram em que
-          você conversou.
+          você conversou. A clínica consegue apagar os seus dados na hora, pelo
+          painel da LumenzIA.
         </li>
         <li>
           Se preferir, ou se a clínica não responder, escreva para{" "}

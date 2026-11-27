@@ -153,8 +153,8 @@ export default function PrivacyPage() {
           gerar as respostas.
         </li>
         <li>
-          <strong>Meta (WhatsApp Business Platform):</strong> envio e
-          recebimento das mensagens.
+          <strong>Meta (WhatsApp e Instagram):</strong> envio e recebimento das
+          mensagens.
         </li>
         <li>
           <strong>Mercado Pago:</strong> processamento dos pagamentos.
@@ -193,11 +193,14 @@ export default function PrivacyPage() {
       <p>
         Mantemos os dados da conta enquanto ela estiver ativa. As conversas com
         pacientes (mensagens e resumos) são apagadas automaticamente 2 anos
-        depois da última mensagem, ou antes, a pedido. As configurações da
-        clínica são guardadas enquanto ela utilizar o serviço e podem ser
-        excluídas a pedido. Dados de pagamento podem ser guardados pelo prazo
-        exigido por lei fiscal e contábil. O registro de agendamentos usado nos
-        indicadores, sem nome nem telefone, é apagado depois de 13 meses.
+        depois da última mensagem, e o cadastro do paciente (nome, telefone e
+        dados informados ao agendar, como CPF e data de nascimento), 2 anos
+        depois do último contato. A clínica também pode apagar os dados de um
+        paciente a qualquer momento, pelo painel. As configurações da clínica
+        são guardadas enquanto ela utilizar o serviço e podem ser excluídas a
+        pedido. Dados de pagamento podem ser guardados pelo prazo exigido por
+        lei fiscal e contábil. O registro de agendamentos usado nos indicadores,
+        sem nome nem telefone, é apagado depois de 13 meses.
       </p>
 
       <h2>7. Seus direitos</h2>

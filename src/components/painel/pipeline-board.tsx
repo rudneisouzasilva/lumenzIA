@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 import {
   deleteLostReason,
+  deletePatientData,
   deleteStage,
   moveContact,
   reorderStages,
@@ -123,6 +124,7 @@ export function PipelineBoard({
   contacts: initial,
   lostReasons,
   members,
+  canErase,
 }: {
   query: string;
   stages: BoardStage[];
@@ -130,6 +132,8 @@ export function PipelineBoard({
   contacts: BoardContact[];
   lostReasons: Option[];
   members: Option[];
+  /** Só a dona da conta apaga os dados de um paciente (LGPD). */
+  canErase: boolean;
 }) {
   const [contacts, setContacts] = useState(initial);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -490,6 +494,11 @@ export function PipelineBoard({
           stages={stages}
           lostReasons={lostReasons}
           members={members}
+          canErase={canErase}
+          onErased={() => {
+            setContacts((list) => list.filter((c) => c.id !== open.id));
+            setOpen(null);
+          }}
           onClose={() => setOpen(null)}
         />
       )}
@@ -647,14 +656,19 @@ function ContactDialog({
   stages,
   lostReasons,
   members,
+  canErase,
+  onErased,
   onClose,
 }: {
   contact: BoardContact;
   stages: BoardStage[];
   lostReasons: Option[];
   members: Option[];
+  canErase: boolean;
+  onErased: () => void;
   onClose: () => void;
 }) {
+  const [erasing, setErasing] = useState(false);
   const [form, setForm] = useState({
     name: contact.savedName,
     stageId: contact.stageId ?? "",
@@ -833,6 +847,107 @@ function ContactDialog({
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="animate-spin" />}
               Salvar
+            </Button>
+          </div>
+        </form>
+
+        {canErase && (
+          <div className="grid gap-2 border-t pt-4">
+            <p className="text-sm text-muted-foreground">
+              O paciente pediu para apagar os dados dele (LGPD)? Isto apaga o
+              contato, os dados informados no agendamento, as conversas e os
+              agendamentos guardados na LumenzIA.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit text-destructive"
+              onClick={() => setErasing(true)}
+            >
+              <Trash2 />
+              Apagar dados deste paciente
+            </Button>
+          </div>
+        )}
+
+        {erasing && (
+          <ErasePatientDialog
+            contact={contact}
+            onCancel={() => setErasing(false)}
+            onErased={onErased}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ErasePatientDialog({
+  contact,
+  onCancel,
+  onErased,
+}: {
+  contact: BoardContact;
+  onCancel: () => void;
+  onErased: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const [pending, startTransition] = useTransition();
+  const ready = typed.trim().toUpperCase() === "APAGAR";
+
+  const erase = () =>
+    startTransition(async () => {
+      const result = await deletePatientData(contact.id, typed);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Dados do paciente apagados.");
+      onErased();
+    });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogTitle>
+          Apagar os dados de {contact.name ?? contact.handle}?
+        </DialogTitle>
+        <DialogDescription>
+          Some para sempre da LumenzIA: o contato, CPF, data de nascimento e
+          outros dados informados, todas as conversas e os agendamentos
+          guardados aqui. Não dá para desfazer. A agenda da clínica (Google
+          Agenda ou outro sistema) não é alterada; apague lá também, se for o
+          caso. Se a pessoa mandar mensagem de novo, ela volta como contato
+          novo.
+        </DialogDescription>
+        <form
+          className="grid gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (ready) erase();
+          }}
+        >
+          <div className="grid gap-2">
+            <Label htmlFor="erase-confirm">Digite APAGAR para confirmar</Label>
+            <Input
+              id="erase-confirm"
+              autoComplete="off"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={!ready || pending}
+            >
+              {pending && <Loader2 className="animate-spin" />}
+              Apagar
             </Button>
           </div>
         </form>

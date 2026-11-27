@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { FormResult } from "@/lib/auth/validation";
 import { getActionContext } from "@/lib/painel/context";
 import { STAGE_COLORS } from "@/lib/painel/pipeline";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const fail = (error: string): FormResult => ({ ok: false, error });
 const saveError = (where: string, message: string) => {
@@ -84,6 +85,35 @@ export async function saveContactDetails(input: unknown): Promise<FormResult> {
     .eq("id", v.contactId)
     .eq("clinic_id", ctx.clinic.id);
   if (error) return saveError("contato", error.message);
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * LGPD: apaga tudo o que a LumenzIA guarda de um paciente (contato, dados do agendamento como CPF
+ * e nascimento, conversas, mensagens, agendamentos, retomadas e histórico do funil). Só a dona da
+ * conta, e só depois de digitar APAGAR. Não mexe na agenda da clínica (Google, Clínica Experts).
+ */
+export async function deletePatientData(
+  contactId: unknown,
+  confirm: unknown,
+): Promise<FormResult> {
+  const id = uuid.safeParse(contactId);
+  if (!id.success) return fail("Contato inválido.");
+  if (typeof confirm !== "string" || confirm.trim().toUpperCase() !== "APAGAR")
+    return fail("Digite APAGAR para confirmar.");
+  const ctx = await getActionContext("owner");
+  if ("error" in ctx) return fail(ctx.error);
+
+  const { data, error } = await createAdminClient().rpc("delete_patient_data", {
+    p_clinic_id: ctx.clinic.id,
+    p_contact_id: id.data,
+  });
+  if (error) {
+    console.error("[funil] apagar dados do paciente:", error.message);
+    return fail("Não foi possível apagar agora. Tente de novo.");
+  }
+  if (!data) return fail("Contato não encontrado.");
   refresh();
   return { ok: true };
 }
